@@ -40,6 +40,7 @@ import {
   berechneEmpfohlenenPreis,
 } from '../../services/anfrageParserService';
 import { anfragenService } from '../../services/anfragenService';
+import { hatNotiz, istWichtig, setzeWichtig } from '../../utils/anfrageNotiz';
 import { ladeAlleEmailProtokolle } from '../../services/emailSendService';
 import { searchEmailsByAddress } from '../../services/emailService';
 import {
@@ -441,7 +442,9 @@ Bei Fragen sind wir gerne für Sie da.`,
         // Nur die ersten 5 analysieren und mit Delay, um API nicht zu überlasten
         const zuAnalysieren = verarbeitete.filter(a => {
           const nachricht = extrahiereNachricht(a.emailText);
-          return nachricht && !a.notizen;
+          // `hatNotiz` statt `!a.notizen`: Ein technischer Vermerk im Feld ist
+          // keine Notiz und soll die Analyse nicht blockieren.
+          return nachricht && !hatNotiz(a.notizen);
         }).slice(0, 5);
 
         // Starte Analysen im Hintergrund mit setTimeout
@@ -453,7 +456,11 @@ Bei Fragen sind wir gerne für Sie da.`,
             try {
               const analyse = await claudeAnfrageService.analysiereNachricht(nachricht);
               if (analyse.notizen) {
-                anfrage.notizen = analyse.notizen;
+                // Marker erhalten: Eine nur markierte Anfrage („⭐ WICHTIG" ohne
+                // Text) gilt als notizlos und kommt damit in die Analyse. Würde
+                // das Ergebnis das Feld einfach ersetzen, verschwände die
+                // Hervorhebung, die jemand bewusst gesetzt hat.
+                anfrage.notizen = setzeWichtig(analyse.notizen, istWichtig(anfrage.notizen));
                 setAnfragen(prev => [...prev]);
               }
             } catch (error) {
@@ -682,8 +689,10 @@ Bei Fragen sind wir gerne für Sie da.`,
     try {
       await anfragenService.markiereAlsWichtig(Array.from(selectedIds), true);
       // Aktualisiere lokale Daten
+      // Wie im Service: Der Marker kommt zum Text dazu, er ersetzt ihn nicht.
+      // Vorher zeigte die Liste nach dem Markieren eine geleerte Notiz an.
       setAnfragen(prev => prev.map(a =>
-        selectedIds.has(a.id) ? { ...a, notizen: '⭐ WICHTIG' } : a
+        selectedIds.has(a.id) ? { ...a, notizen: setzeWichtig(a.notizen, true) } : a
       ));
       setSelectedIds(new Set());
       setMultiSelectMode(false);

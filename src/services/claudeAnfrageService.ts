@@ -671,7 +671,11 @@ Antworte NUR mit diesem JSON-Format:
       lieferwunsch,
       sonderwuensche: sonderwuensche.length > 0 ? sonderwuensche : undefined,
       dringlichkeit,
-      notizen: notizen.trim() || nachricht,
+      // Kein Rückfall auf die komplette Nachricht: Die steht ohnehin daneben im
+      // Original-E-Mail-Bereich. Als „Notiz" wiederholt, füllte sie den
+      // Hinweiskasten mit Text, den niemand geschrieben hat — und verdeckte die
+      // Fälle, in denen wirklich etwas Wichtiges vermerkt war.
+      notizen: notizen.trim(),
     };
   },
 };

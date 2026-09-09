@@ -6,6 +6,7 @@ import {
 } from '../config/appwrite';
 import { Anfrage, NeueAnfrage, AnfrageUpdate } from '../types/anfragen';
 import { loadAllDocuments } from '../utils/appwritePagination';
+import { setzeWichtig } from '../utils/anfrageNotiz';
 
 /**
  * Service für die Verwaltung von Anfragen
@@ -278,10 +279,14 @@ export const anfragenService = {
    */
   async markiereAlsWichtig(ids: string[], wichtig: boolean): Promise<void> {
     try {
-      // Nutze updateAnfrage für jede ID
       for (const id of ids) {
+        // Der Marker teilt sich das Feld mit der Notiz. Vorher schrieb dieser
+        // Aufruf schlicht '⭐ WICHTIG' hinein — eine vorhandene Kundennotiz war
+        // damit nach einem Klick auf „Als wichtig markieren" gelöscht, und das
+        // Zurücknehmen leerte das Feld vollständig.
+        const vorhandene = await this.loadAnfrage(id).catch(() => null);
         await this.updateAnfrage(id, {
-          notizen: wichtig ? '⭐ WICHTIG' : '',
+          notizen: setzeWichtig(vorhandene?.notizen, wichtig),
         });
       }
     } catch (error) {

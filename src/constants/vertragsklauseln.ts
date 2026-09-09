@@ -10,6 +10,7 @@
 
 import { Stammdaten } from '../types/stammdaten';
 import { VertragsKlausel } from '../types/projektabwicklung';
+import { LIEFERUNG } from './artikelPreise';
 
 // === LIEFER- UND ZAHLUNGSBEDINGUNGEN ===
 
@@ -46,9 +47,13 @@ export const DEFAULT_KLAUSEL_VORLAGEN: KlauselVorlage[] = [
       'Der Besteller stellt sicher, dass die Zufahrt zur Abladestelle gemäß unseren Lieferbedingungen ' +
       'ungehindert befahrbar ist (u. a. zurückgeschnittener Bewuchs, ausreichende Durchfahrtsbreite ' +
       'und -höhe, tragfähiger Untergrund). Überschreitet der Aufenthalt unseres Fahrzeugs vor Ort – ' +
-      'einschließlich Rangier-, Warte- und Abladezeit, auch bei mehreren Schüttstellen – aus Gründen, ' +
-      'die der Besteller zu vertreten hat, insgesamt 20 Minuten, wird die darüber hinausgehende Zeit ' +
-      'mit 108,00 € netto je Stunde berechnet (anteilig je angefangene Viertelstunde).',
+      'einschließlich Rangier-, Warte- und Abladezeit – aus Gründen, die der Besteller zu vertreten ' +
+      `hat, insgesamt ${LIEFERUNG.FREIE_ABLADEZEIT_MINUTEN} Minuten, wird die darüber hinausgehende Zeit ` +
+      `mit ${LIEFERUNG.FREMDLIEFERUNG_STUNDENSATZ},00 € netto je Stunde ` +
+      'berechnet (anteilig je angefangene Viertelstunde). ' +
+      'Wünscht der Besteller die Abladung an mehreren Schüttstellen, wird je zusätzlicher Schüttstelle ' +
+      'eine Pauschale berechnet und im Angebot gesondert ausgewiesen; die dafür benötigte Zeit ist ' +
+      `damit abgegolten und zählt nicht in die vorgenannten ${LIEFERUNG.FREIE_ABLADEZEIT_MINUTEN} Minuten.`,
     standardAktiv: true,
   },
   {
@@ -102,6 +107,17 @@ export interface AgbAbschnitt {
 /**
  * AGB der Tennismehl GmbH — übernommen von tennismehl.com/de/agb
  * (Stand 27.07.2026: durchnummeriert § 1–§ 12, Wartezeit 20 Minuten).
+ *
+ * ACHTUNG — § 7 nennt bewusst weiterhin 20 Minuten, obwohl die Klausel
+ * „Erschwerte Zufahrt / Standzeit" seit 09/2026 25 Minuten freistellt:
+ * Dieser Anhang muss der VERÖFFENTLICHTEN Fassung entsprechen
+ * (tennismehl_website/.../lib/legal-content.ts). Hinge an jedem Angebot eine
+ * AGB-Fassung, die es öffentlich nicht gibt, wäre sie angreifbar.
+ * Der Widerspruch ist keiner: Die Klausel ist eine Individualvereinbarung und
+ * geht den AGB vor — sie darf günstiger sein.
+ *
+ * Soll auch die AGB auf 25 Minuten: zuerst die Website ändern und live stellen,
+ * danach hier nachziehen.
  */
 export const DEFAULT_AGB_ABSCHNITTE: AgbAbschnitt[] = [
   {
@@ -160,7 +176,7 @@ export const DEFAULT_AGB_ABSCHNITTE: AgbAbschnitt[] = [
     titel: '§ 7 Versand / Gefahrübergang / Wartezeit',
     absaetze: [
       'Der Versand erfolgt auf Rechnung und Gefahr des Bestellers, sofern nichts anderes vereinbart ist. Die Gefahr des zufälligen Untergangs und der zufälligen Verschlechterung geht mit Übergabe an Spediteur, Frachtführer oder sonstigen Versanddienstleister auf den Besteller über. Verzögert sich der Versand aus Gründen, die der Besteller zu vertreten hat, geht die Gefahr mit Meldung der Versandbereitschaft auf den Besteller über. Versand-, Verpackungs- und Zustellkosten werden gesondert berechnet, soweit sie nicht bereits ausgewiesen sind.',
-      'Kann eine vereinbarte Anlieferung aus Gründen aus der Sphäre des Bestellers nicht oder nicht rechtzeitig entladen werden, gilt Folgendes: Ab einer Wartezeit von mehr als 20 Minuten werden die Wartekosten der Spedition nachberechnet. Dauert die Verzögerung mehr als 90 Minuten, kann Tennismehl zusätzlich Folgekosten und Mehraufwand berechnen, insbesondere für erneute Anlieferung, Ausfall anderer Abladestellen oder zusätzliche Disposition. Muss ein vereinbarter Termin erneut angefahren werden, fallen die Frachtkosten erneut an. Ist die Verantwortlichkeit des Bestellers schriftlich bestätigt oder eindeutig nachweisbar, trägt er die Mehrkosten vollständig. Ist die Verantwortlichkeit streitig und nicht eindeutig nachweisbar, tragen Tennismehl und der Besteller die Zusatzfrachtkosten je zur Hälfte.',
+      `Kann eine vereinbarte Anlieferung aus Gründen aus der Sphäre des Bestellers nicht oder nicht rechtzeitig entladen werden, gilt Folgendes: Ab einer Wartezeit von mehr als 20 Minuten werden die Wartekosten der Spedition nachberechnet. Dauert die Verzögerung mehr als 90 Minuten, kann Tennismehl zusätzlich Folgekosten und Mehraufwand berechnen, insbesondere für erneute Anlieferung, Ausfall anderer Abladestellen oder zusätzliche Disposition. Muss ein vereinbarter Termin erneut angefahren werden, fallen die Frachtkosten erneut an. Ist die Verantwortlichkeit des Bestellers schriftlich bestätigt oder eindeutig nachweisbar, trägt er die Mehrkosten vollständig. Ist die Verantwortlichkeit streitig und nicht eindeutig nachweisbar, tragen Tennismehl und der Besteller die Zusatzfrachtkosten je zur Hälfte.`,
     ],
   },
   {

@@ -10,6 +10,8 @@
  * → Dann wird die Sackware als "Beiladung" mit dem Schüttgut transportiert
  */
 
+import { berechneFrachtkostenpauschale } from '../utils/frachtkostenCalculations';
+
 export interface ArtikelDefinition {
   artikelnummer: string;
   bezeichnung: string;
@@ -256,12 +258,26 @@ export function berechneAnzahlSaecke(tonnen: number): number {
  * Konstanten für die Lieferberechnung
  */
 export const LIEFERUNG = {
-  // Stundensatz für Fremdlieferung (LKW)
-  FREMDLIEFERUNG_STUNDENSATZ: 108, // €/Stunde
+  /**
+   * Stundensatz für Fremdlieferung (LKW).
+   *
+   * Bis 09/2026 standen im Portal zwei Sätze nebeneinander: 108 € im
+   * Anfragetool und in der Standzeit-Klausel, 105 € im Angebot-Tab und im
+   * Massenangebot. Dieselbe Fuhre wurde je nach Maske anders kalkuliert.
+   * Entscheidung Julian (09.09.2026): einheitlich 105 €.
+   */
+  FREMDLIEFERUNG_STUNDENSATZ: 105, // €/Stunde
 
   // Standardzeiten
   BELADEZEIT_MINUTEN: 30,
   ABLADEZEIT_MINUTEN: 30,
+
+  /**
+   * Zeit vor Ort, die dem Kunden fürs Abkippen freisteht, bevor die
+   * Standzeit-Klausel greift (Entscheidung Julian, 09.09.2026: 25 Minuten).
+   * Wird sowohl im Klauseltext als auch in den AGB ausgewiesen.
+   */
+  FREIE_ABLADEZEIT_MINUTEN: 25,
 
   // Ausgangsort (Marktheidenfeld)
   AUSGANGS_PLZ: '97828',
@@ -273,14 +289,10 @@ export const LIEFERUNG = {
  * Bei Schüttgut unter 20 Tonnen wird eine Mindermengenpauschale berechnet.
  * Je größer die Menge, desto geringer die Pauschale.
  */
-export const MINDERMENGENPAUSCHALE_STAFFELUNG = [
-  { bisTo: 5.4, pauschale: 59.90 },   // weniger als 5,4 to
-  { bisTo: 7.4, pauschale: 49.90 },   // von 5,4 to bis 7,4 to
-  { bisTo: 11.4, pauschale: 39.90 },  // von 7,5 to bis 11,4 to
-  { bisTo: 15.4, pauschale: 31.90 },  // von 11,5 bis 15,4 to
-  { bisTo: 19.9, pauschale: 24.90 },  // von 15,5 bis 19,9 to
-  // Ab 20 to: keine Pauschale
-] as const;
+// Die Staffel selbst steht in utils/frachtkostenCalculations.ts — EINE Quelle für
+// Anfrage, Angebot, AB, Rechnung und Bestellportal. Die frühere Kopie an dieser
+// Stelle wich in den Grenzwerten ab und lieferte bei 7,4 / 11,4 / 15,4 t eine
+// Stufe zu wenig.
 
 /**
  * Berechnet die Mindermengenpauschale für Schüttgut basierend auf der Gesamtmenge
@@ -299,17 +311,13 @@ export function berechneMindermengenpauschale(tonnenSchuettgut: number): number 
     return null;
   }
 
-  // Finde die passende Staffel
-  for (const staffel of MINDERMENGENPAUSCHALE_STAFFELUNG) {
-    if (tonnenSchuettgut < staffel.bisTo) {
-      return staffel.pauschale;
-    }
-  }
-
-  // Zwischen 15.4 und 19.9 to (letzte Staffel)
-  if (tonnenSchuettgut < 20) {
-    return 24.90;
-  }
-
-  return null;
+  // Die Obergrenzen gelten EINSCHLIESSLICH — „von 5,4 bis 7,4 to = 49,90 €"
+  // meint 7,4 t noch mit. Bis 09/2026 stand hier `< staffel.bisTo`; damit fiel
+  // ausgerechnet die genannte Grenze in die nächstgünstigere Stufe (7,4 t →
+  // 39,90 €) und widersprach dem Kommentar direkt darüber. Angebot, AB,
+  // Rechnung und Bestellportal rechnen seit jeher einschließend
+  // (utils/frachtkostenCalculations.ts) — dieselbe Anfrage bekam also je nach
+  // Maske einen anderen Betrag.
+  const pauschale = berechneFrachtkostenpauschale(tonnenSchuettgut);
+  return pauschale > 0 ? pauschale : null;
 }

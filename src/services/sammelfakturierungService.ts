@@ -30,6 +30,44 @@ import { generiereNaechsteDokumentnummer } from './nummerierungService';
 import { ermittleRechnungsAdressen } from './rechnungsadressenService';
 import { berechneRechnungsSummen } from './rechnungService';
 import { wiegescheinVorgesehen } from '../utils/abwicklungsweg';
+import {
+  berechneGesamtZuschlag,
+  erstelleDieselZuschlagPosition,
+  getBasisPreisConfig,
+  istDieselZuschlagPosition,
+} from '../utils/dieselZuschlag';
+import { holeDieselPreisFuerDatum } from '../utils/dieselPreisAPI';
+import { ermittleEntfernungAbWerkKm } from '../utils/lieferEntfernung';
+
+/** Werk Marktheidenfeld — Ausgangspunkt für Dieselpreis und Entfernung. */
+const WERK_PLZ = '97828';
+
+/**
+ * Dieselpreis je Leistungsdatum, einmal pro Lauf.
+ *
+ * `pruefeKandidat` läuft für JEDEN Vorgang der Liste; in der Saison sind das
+ * 25 bis 33. Ohne diesen Puffer stünden ebenso viele Preisabrufe an (Appwrite →
+ * Backend → Tankerkönig, jeder mit eigenem Zeitlimit) — die Vorschau bräuchte
+ * Minuten. Die Leistungsdaten eines Laufs liegen typisch auf wenigen Tagen,
+ * der Puffer greift also fast immer.
+ */
+const dieselPreisCache = new Map<string, Promise<number>>();
+const dieselPreisGecacht = (leistungsdatum: string): Promise<number> => {
+  const vorhanden = dieselPreisCache.get(leistungsdatum);
+  if (vorhanden) return vorhanden;
+  const abruf = holeDieselPreisFuerDatum(leistungsdatum, WERK_PLZ).then((r) => r.preis);
+  dieselPreisCache.set(leistungsdatum, abruf);
+  return abruf;
+};
+
+/**
+ * Puffer verwerfen. Wird zu Beginn jedes Laufs gerufen.
+ *
+ * Ohne das Leeren hielte der Puffer für die Lebensdauer des Moduls: Wer das
+ * Portal über Nacht offen lässt, bekäme am nächsten Tag den Dieselpreis von
+ * gestern in eine frisch erzeugte Rechnung geschrieben.
+ */
+const leereDieselPreisPuffer = (): void => dieselPreisCache.clear();
 
 /** Aus diesen Status heraus wird fakturiert: geliefert ist die Voraussetzung. */
 export const FAKTURIERBARE_STATUS: Projekt['status'][] = ['lieferschein', 'geliefert'];
@@ -110,6 +148,50 @@ async function hatAktiveRechnung(projektId: string): Promise<boolean> {
 }
 
 /**
+ * Ergänzt den Dieselpreiszuschlag — genau wie es der Rechnungs-Tab tut.
+ *
+ * Die Sammelfakturierung übernimmt die Positionen aus der Auftragsbestätigung
+ * und schreibt sie als finale Rechnung weg; eine eigene Zuschlagsberechnung gab
+ * es hier nie. Solange das Angebot eine bezifferte TM-DZ-Position mitschleppte,
+ * lief wenigstens der (veraltete) Angebotswert mit durch. Seit der Zuschlag
+ * bewusst erst zur Rechnung entsteht (Vorschlag 4, 09/2026), stünde hier sonst
+ * gar keiner mehr — bei rund 25 Lieferungen je Saisonwoche eine spürbare Lücke.
+ *
+ * Gerechnet wird zum LEISTUNGSDATUM, nicht zum Angebotstag. Schlägt der
+ * Preisabruf fehl, bleiben die Positionen unverändert: Lieber eine Rechnung ohne
+ * Zuschlag als gar keine — die Sperrgründe prüfen den Rest.
+ */
+async function ergaenzeDieselZuschlag(
+  positionen: Position[],
+  leistungsdatum: string,
+  plz?: string
+): Promise<Position[]> {
+  if (positionen.length === 0) return positionen;
+  const ohneZuschlag = positionen.filter((p) => !istDieselZuschlagPosition(p));
+  try {
+    const preis = await dieselPreisGecacht(leistungsdatum);
+    // Die Entfernung fließt erst ab der Staffel 2027 in den Satz ein. Für alle
+    // früheren Leistungsdaten wäre der Abruf ein Google-Aufruf ohne Wirkung —
+    // bei dreißig Kandidaten dreißig Mal.
+    const brauchtEntfernung = !!getBasisPreisConfig(leistungsdatum).entfernungsStaffel;
+    const entfernung = brauchtEntfernung && plz ? await ermittleEntfernungAbWerkKm(plz) : null;
+    const ergebnis = berechneGesamtZuschlag(ohneZuschlag, preis, leistungsdatum, entfernung?.km);
+    if (!ergebnis.hatZuschlag || ergebnis.gesamtTonnen === 0) return ohneZuschlag;
+
+    const zuschlag = erstelleDieselZuschlagPosition(ergebnis);
+    // Vor die Frachtkostenpauschale, wie in Angebot und Rechnung.
+    const fpIndex = ohneZuschlag.findIndex((p) => p.artikelnummer === 'TM-FP');
+    const neu = [...ohneZuschlag];
+    if (fpIndex !== -1) neu.splice(fpIndex, 0, zuschlag);
+    else neu.push(zuschlag);
+    return neu;
+  } catch (fehler) {
+    console.error('Sammelfakturierung: Dieselzuschlag konnte nicht berechnet werden', fehler);
+    return positionen;
+  }
+}
+
+/**
  * Bereitet einen einzelnen Vorgang vor, ohne etwas zu schreiben.
  *
  * Die Rechnungsnummer wird hier BEWUSST noch nicht gezogen: Zwischen Vorschau
@@ -143,7 +225,11 @@ export async function pruefeKandidat(projekt: Projekt): Promise<FakturaKandidat>
   }
 
   const rohPositionen = await ladePositionenVonVorherigem(projektId, 'rechnung');
-  const positionen = (rohPositionen ?? []) as Position[];
+  const positionen = await ergaenzeDieselZuschlag(
+    (rohPositionen ?? []) as Position[],
+    projekt.liefernachweisAm?.split('T')[0] || new Date().toISOString().split('T')[0],
+    projekt.lieferadresse?.plz || projekt.kundenPlzOrt
+  );
   if (positionen.length === 0) {
     sperren.push('keine_positionen');
     kandidat.hinweis = sperren.map((s) => SPERR_TEXT[s]).join(' ');
@@ -213,6 +299,9 @@ export async function sammleFakturierbare(
   saisonjahr?: number,
   onFortschritt?: (geprueft: number, gesamt: number) => void
 ): Promise<FakturaKandidat[]> {
+  // Frischer Lauf, frische Preise.
+  leereDieselPreisPuffer();
+
   const projekte = await projektService.loadProjekte({
     status: FAKTURIERBARE_STATUS,
     saisonjahr,
@@ -332,4 +421,4 @@ export function fasseZusammen(kandidaten: FakturaKandidat[]): {
 export const sperrText = (grund: SperrGrund): string => SPERR_TEXT[grund];
 
 /** Nur für Tests. */
-export const _internals = { ladeAbOptionen, hatAktiveRechnung, SPERR_TEXT };
+export const _internals = { ladeAbOptionen, hatAktiveRechnung, SPERR_TEXT, leereDieselPreisPuffer };

@@ -61,6 +61,7 @@ import {
   VerarbeitungsSchritt,
 } from '../../services/anfrageVerarbeitungService';
 import { anfragenService } from '../../services/anfragenService';
+import { hatNotiz, istWichtig, notizText, setzeWichtig } from '../../utils/anfrageNotiz';
 import { claudeAnfrageService } from '../../services/claudeAnfrageService';
 import { berechneFremdlieferungRoute, formatZeit } from '../../utils/routeCalculation';
 import {
@@ -83,17 +84,19 @@ import {
 } from '../../constants/vertragsklauseln';
 import { VertragsKlausel, AngebotsDaten } from '../../types/projektabwicklung';
 import { berechneSpeditionskosten, getZoneFromPLZ } from '../../constants/pricing';
-import {
-  berechneGesamtZuschlag,
-  erstelleDieselZuschlagPosition,
-  istDieselZuschlagPosition,
-} from '../../utils/dieselZuschlag';
-import { holeDieselPreisFuerDatum } from '../../utils/dieselPreisAPI';
-import { ermittleEntfernungAbWerkKm } from '../../utils/lieferEntfernung';
 import EmailAdressenInput from '../Shared/EmailAdressenInput';
+import { NumberInput } from '../NumberInput';
+import {
+  ARTIKELNUMMERN_LOSE,
+  FRACHTPAUSCHALE_ARTIKEL,
+  zieheFrachtpauschaleNach as zieheFrachtpauschaleNachIn,
+} from '../../utils/loseTonnage';
+import { LIEFERUNG, berechneMindermengenpauschale } from '../../constants/artikelPreise';
 
 // Konstanten
-const FREMDLIEFERUNG_STUNDENLOHN = 108;
+// Ein Satz für alle Masken (LIEFERUNG.FREMDLIEFERUNG_STUNDENSATZ = 105 €/h).
+// Vorher standen hier 108, im Angebot-Tab und im Massenangebot 105.
+const FREMDLIEFERUNG_STUNDENLOHN = LIEFERUNG.FREMDLIEFERUNG_STUNDENSATZ;
 const BELADUNGSZEIT_MINUTEN = 30;
 const ABLADUNGSZEIT_MINUTEN = 30;
 const START_PLZ = '97828';
@@ -101,58 +104,23 @@ const DEFAULT_ABSENDER_EMAIL = 'anfrage@tennismehl.com';
 const TEST_EMAIL_ADDRESS = 'jtatwcook@gmail.com';
 
 /**
- * Ergänzt die Dieselpreis-Pauschale (Dieselpreiszuschlag gemäß AGB §4) als Position
- * im Angebot. Der Zuschlag wird aus den zuschlagsfähigen Positionen (TM-ZM Schüttgut/
- * Sackware in Tonnen) und dem tagesaktuellen Dieselpreis berechnet.
+ * KEINE Dieselzuschlag-Position mehr im Anfrage-Angebot (Vorschlag 4, 09/2026).
  *
- * Idempotent: eine bereits vorhandene Dieselzuschlag-Position wird zuvor entfernt.
- * Fällt kein Zuschlag an (Dieselpreis unter Basis oder keine zuschlagsfähigen
- * Positionen), werden die Positionen unverändert zurückgegeben.
+ * Bis 09/2026 hängte der Dialog hier automatisch eine bezifferte Position TM-DZ
+ * an — berechnet mit dem Dieselpreis von HEUTE, nicht vom Liefertag. Das ergab
+ * drei Aussagen zu einer Sache: Das Angebot wies einen Betrag aus, daneben stand
+ * die Klausel „bei Steigerungen erhöht sich der Preis", und die Rechnung rechnete
+ * den Zuschlag zum Leistungsdatum ohnehin neu (RechnungTab.tsx). Der Kunde sah
+ * eine Zahl, die bis zur Lieferung fast sicher nicht mehr stimmte.
+ *
+ * Jetzt wie im Massenangebot: nur die Klausel im Angebot, die Berechnung erst auf
+ * der Rechnung. Bereits gespeicherte Angebote behalten ihre TM-DZ-Position
+ * (Schnappschuss) — sie dient dem Massenangebot zusätzlich als Abholer-Merkmal
+ * (massenAngebotZielgruppen.ts) und darf rückwirkend nicht verschwinden.
  */
-async function ergaenzeDieselPauschale(
-  basisPositionen: Position[],
-  plz: string,
-  datum: string
-): Promise<Position[]> {
-  // Bestehende Dieselzuschlag-Position entfernen (Doppelberechnung vermeiden)
-  const ohneDiesel = basisPositionen.filter((p) => !istDieselZuschlagPosition(p));
-
-  try {
-    const preisErgebnis = await holeDieselPreisFuerDatum(datum, plz || START_PLZ);
-
-    // Entfernung zur Abladestelle — ab Staffel 2027 bestimmt sie den Satz je Preisstufe
-    const entfernung = plz ? await ermittleEntfernungAbWerkKm(plz) : null;
-
-    const ergebnis = berechneGesamtZuschlag(
-      ohneDiesel,
-      preisErgebnis.preis,
-      datum,
-      entfernung?.km
-    );
-
-    if (!ergebnis.hatZuschlag || ergebnis.gesamtTonnen === 0) {
-      return ohneDiesel;
-    }
-
-    const dieselPosition = erstelleDieselZuschlagPosition(ergebnis);
-
-    // Vor der Frachtkostenpauschale (TM-FP) einsortieren, sonst ans Ende anhängen
-    const fpIndex = ohneDiesel.findIndex((p) => p.artikelnummer === 'TM-FP');
-    const neuePositionen = [...ohneDiesel];
-    if (fpIndex !== -1) {
-      neuePositionen.splice(fpIndex, 0, dieselPosition);
-    } else {
-      neuePositionen.push(dieselPosition);
-    }
-    return neuePositionen;
-  } catch (error) {
-    console.error('Fehler beim Ergänzen der Dieselpreis-Pauschale:', error);
-    return ohneDiesel;
-  }
-}
 
 /** Artikelnummern für loses Schüttgut — deren Einzelpreis ist der Preis/t aus dem Dialog. */
-const ARTIKELNUMMERN_LOSE = ['TM-ZM-02', 'TM-ZM-03'];
+
 
 interface BearbeitbareDaten {
   kundenname: string;
@@ -171,6 +139,8 @@ interface BearbeitbareDaten {
   menge: number;
   preisProTonne: number;
   frachtkosten: number;
+  /** 0 = eine Schüttstelle (Normalfall); jede weitere wird als TM-STS berechnet. */
+  zusaetzlicheSchuettstellen: number;
   emailBetreff: string;
   emailText: string;
 }
@@ -219,6 +189,14 @@ const AnfrageBearbeitungDialog = ({
   // Bearbeitung States
   const [editedData, setEditedData] = useState<BearbeitbareDaten | null>(null);
   const [telefonNotizen, setTelefonNotizen] = useState('');
+  // Notiz zur Anfrage (Feld `notizen`) — bearbeitbar, siehe utils/anfrageNotiz.ts
+  const [notizBearbeiten, setNotizBearbeiten] = useState(false);
+  const [notizEntwurf, setNotizEntwurf] = useState('');
+  const [notizSpeichert, setNotizSpeichert] = useState(false);
+  /** Lokal gehaltene Notiz, damit die Änderung sofort sichtbar ist. */
+  const [notizLokal, setNotizLokal] = useState<string | undefined>(undefined);
+  /** Der Stand, der gilt: frisch Gespeichertes schlägt die geladene Anfrage. */
+  const notizAktuell = notizLokal ?? anfrage.notizen;
 
   // Klauseln + AGB-Anhang für das Angebot (wie in der Projektabwicklung).
   // Vorlagen kommen aus Stammdaten → „Klauseln & AGB".
@@ -266,6 +244,12 @@ const AnfrageBearbeitungDialog = ({
   // Positionen
   const [allePositionen, setAllePositionen] = useState<Position[]>([]);
   const [positionenLaden, setPositionenLaden] = useState(false);
+  /**
+   * Hat jemand die Positionen von Hand geändert? Dann folgen sie den Mengen im
+   * Grid nicht mehr automatisch — sonst überschriebe die Neugenerierung
+   * korrigierte Preise, gelöschte Zeilen und zusätzlich eingefügte Artikel.
+   */
+  const [positionenManuell, setPositionenManuell] = useState(false);
   const [showArtikelSuche, setShowArtikelSuche] = useState(false);
   const [artikelSuchtext, setArtikelSuchtext] = useState('');
   const [verfuegbareArtikel, setVerfuegbareArtikel] = useState<Artikel[]>([]);
@@ -422,6 +406,7 @@ const AnfrageBearbeitungDialog = ({
   const werkspreisLose = werkspreisAusStamm('TM-ZM-02', 98.7);
   const werkspreisSackwareAbWerk = werkspreisAusStamm('TM-ZM-02St', 155);
   const werkspreisBigbagAbWerk = werkspreisAusStamm('TM-ZM-BIG-02', 125.9);
+  const schuettstellenPreis = werkspreisAusStamm('TM-STS', 15.9);
 
   // Lose Tonnage — Bezugsgröße für die Lieferkosten-Umlage. Sackware, BigBags und
   // Paletten gehen per Spedition und werden separat kalkuliert.
@@ -572,6 +557,7 @@ const AnfrageBearbeitungDialog = ({
         menge,
         preisProTonne: empfohlenerPreis,
         frachtkosten: 0,
+        zusaetzlicheSchuettstellen: 0,
         emailBetreff: anfrage.emailVorschlag.betreff,
         emailText: anfrage.emailVorschlag.text,
       });
@@ -586,6 +572,10 @@ const AnfrageBearbeitungDialog = ({
       setShowArtikelSuche(false);
       // Notizen gehören zur einzelnen Anfrage — sonst landen sie im nächsten Projekt
       setTelefonNotizen('');
+      setNotizBearbeiten(false);
+      setNotizEntwurf('');
+      setNotizLokal(undefined);
+      setPositionenManuell(false);
       // Klausel-Auswahl auf die Vorlagen-Defaults zurücksetzen
       setVertragsklauseln(initialisiereDokumentKlauseln(klauselVorlagen));
       setAgbAnhaengen(true);
@@ -702,7 +692,13 @@ const AnfrageBearbeitungDialog = ({
   // Positionen generieren
   useEffect(() => {
     if (!editedData || !anfrage) return;
-    if (allePositionen.length > 0) return;
+    // Solange niemand die Positionen von Hand angefasst hat, folgen sie den
+    // Mengen im Grid. Vorher wurden sie GENAU EINMAL erzeugt: Wer danach die
+    // Tonnen änderte, verschickte ein Angebot mit der alten Menge und der alten
+    // Frachtpauschale — der Kern von Vorschlag 3. Sobald eine Position editiert,
+    // ergänzt oder gelöscht wurde, hält die Automatik an und der Bearbeiter
+    // entscheidet über „Neu generieren".
+    if (allePositionen.length > 0 && positionenManuell) return;
 
     const generierePositionen = async () => {
       setPositionenLaden(true);
@@ -717,14 +713,9 @@ const AnfrageBearbeitungDialog = ({
           menge: editedData.menge,
           plz: editedData.plz,
           preisProTonneInklLieferung: editedData.preisProTonne,
+          zusaetzlicheSchuettstellen: editedData.zusaetzlicheSchuettstellen,
         });
-        const heute = new Date().toISOString().split('T')[0];
-        const mitDiesel = await ergaenzeDieselPauschale(
-          positionenErgebnis.positionen,
-          editedData.plz,
-          heute
-        );
-        setAllePositionen(mitDiesel);
+        setAllePositionen(positionenErgebnis.positionen);
       } catch (error) {
         console.error('Fehler beim Generieren der Positionen:', error);
       } finally {
@@ -734,14 +725,34 @@ const AnfrageBearbeitungDialog = ({
 
     const timeout = setTimeout(generierePositionen, 300);
     return () => clearTimeout(timeout);
-  }, [editedData, anfrage, allePositionen.length]);
+    // Bewusst nur die Felder, aus denen Positionen entstehen. Hinge der Effekt am
+    // ganzen editedData-Objekt, löste jedes Zeichen im Kundennamen oder im
+    // E-Mail-Text eine komplette Neugenerierung samt elf Artikel-Queries aus.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    anfrage,
+    allePositionen.length,
+    positionenManuell,
+    editedData?.tonnenLose02,
+    editedData?.tonnenGesackt02,
+    editedData?.tonnenBigbag02,
+    editedData?.tonnenLose03,
+    editedData?.tonnenGesackt03,
+    editedData?.tonnenBigbag03,
+    editedData?.menge,
+    editedData?.plz,
+    editedData?.preisProTonne,
+    // Muss mit: Aus diesem Feld entsteht die Position TM-STS. Fehlte es hier,
+    // liefe der Effekt nach der Eingabe nicht erneut — der Hinweis am Feld
+    // versprach dem Bearbeiter eine Position, die nie erzeugt wurde.
+    editedData?.zusaetzlicheSchuettstellen,
+  ]);
 
   // Lose Positionen dem Preis/t nachziehen.
   //
-  // Die Positionen werden nur EINMAL generiert (der Effekt oben steigt bei
-  // `allePositionen.length > 0` aus). Wann sie fertig sind, ist nicht vorhersagbar:
-  // Der 300-ms-Timer ist nur der Start, danach laufen elf Artikel-Queries plus
-  // Dieselpreis- und Entfernungsabruf. Die Lieferkosten-Route kann also vor ODER nach
+  // Wann die Generierung oben fertig ist, ist nicht vorhersagbar: Der 300-ms-Timer
+  // ist nur der Start, danach laufen elf Artikel-Queries.
+  // Die Lieferkosten-Route kann also vor ODER nach
   // der Generierung fertig werden. Ohne Abgleich behielten die Positionen den groben
   // Schätzpreis, während das Feld Preis/t den kalkulierten zeigte — und ins
   // Angebots-PDF geht der Positionspreis, also der falsche.
@@ -806,6 +817,8 @@ const AnfrageBearbeitungDialog = ({
   const handlePositionenNeuGenerieren = async () => {
     if (!editedData) return;
 
+    // Bewusster Neuaufbau: Ab hier folgen die Positionen wieder dem Grid.
+    setPositionenManuell(false);
     setPositionenLaden(true);
     try {
       const positionenErgebnis = await erstelleAnfragePositionen({
@@ -818,14 +831,9 @@ const AnfrageBearbeitungDialog = ({
         menge: editedData.menge,
         plz: editedData.plz,
         preisProTonneInklLieferung: editedData.preisProTonne,
+        zusaetzlicheSchuettstellen: editedData.zusaetzlicheSchuettstellen,
       });
-      const heute = new Date().toISOString().split('T')[0];
-      const mitDiesel = await ergaenzeDieselPauschale(
-        positionenErgebnis.positionen,
-        editedData.plz,
-        heute
-      );
-      setAllePositionen(mitDiesel);
+      setAllePositionen(positionenErgebnis.positionen);
     } catch (error) {
       console.error('Fehler beim Generieren der Positionen:', error);
       alert('Fehler beim Generieren der Positionen');
@@ -1214,14 +1222,53 @@ const AnfrageBearbeitungDialog = ({
    * Ändert eine einzelne Position. `gesamtpreis` wird immer nachgerechnet, damit
    * die Summenzeile und das PDF nicht auseinanderlaufen.
    */
+  /**
+   * Notiz zur Anfrage speichern.
+   *
+   * Die Wichtig-Markierung steckt im selben Feld und darf beim Bearbeiten nicht
+   * verloren gehen — `setzeWichtig` setzt sie dem neuen Text wieder voran.
+   */
+  const notizSpeichern = async () => {
+    setNotizSpeichert(true);
+    try {
+      const wichtig = istWichtig(notizAktuell);
+      const neu = setzeWichtig(notizEntwurf.trim(), wichtig);
+      await anfragenService.updateAnfrage(anfrage.id, { notizen: neu });
+      setNotizLokal(neu);
+      setNotizBearbeiten(false);
+    } catch (error) {
+      console.error('Notiz konnte nicht gespeichert werden:', error);
+      alert('Die Notiz konnte nicht gespeichert werden.');
+    } finally {
+      setNotizSpeichert(false);
+    }
+  };
+
+  /**
+   * Zieht die Frachtkostenpauschale der losen Menge nach.
+   *
+   * Ohne das behielt eine geänderte Menge die Pauschale der ursprünglichen —
+   * aus 5 t (59,90 €) wurden 6 t, berechnet blieben 59,90 statt 49,90 €. Nur
+   * eine BEREITS vorhandene Position wird angepasst: Ob überhaupt eine Pauschale
+   * anfällt, entscheidet die Erstgenerierung (reine Sackware bekommt keine).
+   * Fällt die Menge auf 20 t oder mehr, verschwindet sie.
+   */
+  const zieheFrachtpauschaleNach = (positionen: Position[]): Position[] =>
+    zieheFrachtpauschaleNachIn(positionen, berechneMindermengenpauschale);
+
   const aenderePosition = (index: number, patch: Partial<Position>) => {
-    setAllePositionen((prev) =>
-      prev.map((p, i) => {
+    setPositionenManuell(true);
+    setAllePositionen((prev) => {
+      const istFrachtpauschale = prev[index]?.artikelnummer === FRACHTPAUSCHALE_ARTIKEL;
+      const geaendert = prev.map((p, i) => {
         if (i !== index) return p;
         const neu = { ...p, ...patch };
+        // Wer den Preis der Pauschale selbst anfasst, will genau diesen Betrag.
+        if (istFrachtpauschale && patch.einzelpreis !== undefined) neu.preisQuelle = 'manuell';
         return { ...neu, gesamtpreis: neu.menge * neu.einzelpreis };
-      })
-    );
+      });
+      return zieheFrachtpauschaleNach(geaendert);
+    });
   };
 
   // Artikel hinzufugen - ALLE Daten aus Stammdaten übernehmen!
@@ -1236,7 +1283,11 @@ const AnfrageBearbeitungDialog = ({
       einzelpreis: artikel.einzelpreis || 0,
       gesamtpreis: artikel.einzelpreis || 0,
     };
-    setAllePositionen(prev => [...prev, neuePosition]);
+    setPositionenManuell(true);
+    // Auch hier nachziehen: Wer Schüttgut über die Artikelsuche ergänzt, ändert
+    // die lose Tonnage — die Pauschale muss der neuen Menge folgen, genau wie
+    // beim Ändern und Löschen einer Position.
+    setAllePositionen(prev => zieheFrachtpauschaleNach([...prev, neuePosition]));
     setShowArtikelSuche(false);
     setArtikelSuchtext('');
   };
@@ -1705,19 +1756,74 @@ const AnfrageBearbeitungDialog = ({
                   </div>
                 </div>
 
-                {/* Kundennotiz */}
-                {anfrage.notizen && (
+                {/* Notiz zur Anfrage.
+                    Der Kasten erscheint nur bei echtem Inhalt: Der Wichtig-Marker
+                    und technische Vermerke aus Bereinigungsläufen sind keine Notiz
+                    (98 von 99 Feldern trugen im Bestand nur „Status nachgetragen
+                    aus E-Mail-Protokoll"). Bearbeitbar, damit hier auch etwas
+                    stehen kann, das jemandem hilft. */}
+                {notizBearbeiten ? (
+                  <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl p-4">
+                    <h4 className="font-bold text-amber-800 dark:text-amber-300 mb-2">Notiz zur Anfrage</h4>
+                    <textarea
+                      value={notizEntwurf}
+                      onChange={(e) => setNotizEntwurf(e.target.value)}
+                      rows={3}
+                      autoFocus
+                      placeholder="Was sollte man zu dieser Anfrage wissen?"
+                      className="w-full px-3 py-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={() => void notizSpeichern()}
+                        disabled={notizSpeichert}
+                        className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium disabled:opacity-50"
+                      >
+                        {notizSpeichert ? 'Speichert …' : 'Speichern'}
+                      </button>
+                      <button
+                        onClick={() => { setNotizBearbeiten(false); setNotizEntwurf(notizText(notizAktuell)); }}
+                        disabled={notizSpeichert}
+                        className="px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-sm"
+                      >
+                        Abbrechen
+                      </button>
+                    </div>
+                  </div>
+                ) : hatNotiz(notizAktuell) ? (
                   <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl p-4">
                     <div className="flex items-start gap-3">
                       <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <h4 className="font-bold text-amber-800 dark:text-amber-300">Wichtige Kundennotiz</h4>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <h4 className="font-bold text-amber-800 dark:text-amber-300">
+                            Notiz zur Anfrage
+                            {istWichtig(notizAktuell) && (
+                              <span className="ml-2 text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100">
+                                wichtig
+                              </span>
+                            )}
+                          </h4>
+                          <button
+                            onClick={() => { setNotizEntwurf(notizText(notizAktuell)); setNotizBearbeiten(true); }}
+                            className="text-sm text-amber-800 dark:text-amber-300 underline underline-offset-2 whitespace-nowrap"
+                          >
+                            Bearbeiten
+                          </button>
+                        </div>
                         <p className="text-amber-900 dark:text-amber-200 whitespace-pre-wrap mt-1">
-                          {anfrage.notizen}
+                          {notizText(notizAktuell)}
                         </p>
                       </div>
                     </div>
                   </div>
+                ) : (
+                  <button
+                    onClick={() => { setNotizEntwurf(''); setNotizBearbeiten(true); }}
+                    className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline underline-offset-2"
+                  >
+                    + Notiz zur Anfrage
+                  </button>
                 )}
 
                 {/* Angebot - Mengen */}
@@ -1749,13 +1855,11 @@ const AnfrageBearbeitungDialog = ({
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                           Lose <span className="text-green-600">{werkspreisLose.toFixed(2)}€/t</span>
                         </label>
-                        <input
-                          type="number"
+                        <NumberInput
                           step="0.5"
                           min="0"
-                          value={editedData.tonnenLose02 || ''}
-                          onChange={(e) => {
-                            const newVal = parseFloat(e.target.value) || 0;
+                          value={editedData.tonnenLose02}
+                          onChange={(newVal) => {
                             const newMenge = newVal + editedData.tonnenGesackt02 + editedData.tonnenBigbag02 + editedData.tonnenLose03 + editedData.tonnenGesackt03 + editedData.tonnenBigbag03;
                             setEditedData({ ...editedData, tonnenLose02: newVal, menge: newMenge });
                           }}
@@ -1767,13 +1871,11 @@ const AnfrageBearbeitungDialog = ({
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                           BigBag <span className="text-green-600">{werkspreisBigbagAbWerk.toFixed(2)}€/t</span>
                         </label>
-                        <input
-                          type="number"
+                        <NumberInput
                           step="0.5"
                           min="0"
-                          value={editedData.tonnenBigbag02 || ''}
-                          onChange={(e) => {
-                            const newVal = parseFloat(e.target.value) || 0;
+                          value={editedData.tonnenBigbag02}
+                          onChange={(newVal) => {
                             const newMenge = editedData.tonnenLose02 + editedData.tonnenGesackt02 + newVal + editedData.tonnenLose03 + editedData.tonnenGesackt03 + editedData.tonnenBigbag03;
                             setEditedData({ ...editedData, tonnenBigbag02: newVal, menge: newMenge });
                           }}
@@ -1785,13 +1887,11 @@ const AnfrageBearbeitungDialog = ({
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                           Gesackt <span className="text-green-600">{werkspreisSackwareAbWerk.toFixed(2)}€/t</span>
                         </label>
-                        <input
-                          type="number"
+                        <NumberInput
                           step="0.5"
                           min="0"
-                          value={editedData.tonnenGesackt02 || ''}
-                          onChange={(e) => {
-                            const newVal = parseFloat(e.target.value) || 0;
+                          value={editedData.tonnenGesackt02}
+                          onChange={(newVal) => {
                             const newMenge = editedData.tonnenLose02 + newVal + editedData.tonnenBigbag02 + editedData.tonnenLose03 + editedData.tonnenGesackt03 + editedData.tonnenBigbag03;
                             setEditedData({ ...editedData, tonnenGesackt02: newVal, menge: newMenge });
                           }}
@@ -1810,13 +1910,11 @@ const AnfrageBearbeitungDialog = ({
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                           Lose <span className="text-green-600">{werkspreisLose.toFixed(2)}€/t</span>
                         </label>
-                        <input
-                          type="number"
+                        <NumberInput
                           step="0.5"
                           min="0"
-                          value={editedData.tonnenLose03 || ''}
-                          onChange={(e) => {
-                            const newVal = parseFloat(e.target.value) || 0;
+                          value={editedData.tonnenLose03}
+                          onChange={(newVal) => {
                             const newMenge = editedData.tonnenLose02 + editedData.tonnenGesackt02 + editedData.tonnenBigbag02 + newVal + editedData.tonnenGesackt03 + editedData.tonnenBigbag03;
                             setEditedData({ ...editedData, tonnenLose03: newVal, menge: newMenge });
                           }}
@@ -1828,13 +1926,11 @@ const AnfrageBearbeitungDialog = ({
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                           BigBag <span className="text-green-600">{werkspreisBigbagAbWerk.toFixed(2)}€/t</span>
                         </label>
-                        <input
-                          type="number"
+                        <NumberInput
                           step="0.5"
                           min="0"
-                          value={editedData.tonnenBigbag03 || ''}
-                          onChange={(e) => {
-                            const newVal = parseFloat(e.target.value) || 0;
+                          value={editedData.tonnenBigbag03}
+                          onChange={(newVal) => {
                             const newMenge = editedData.tonnenLose02 + editedData.tonnenGesackt02 + editedData.tonnenBigbag02 + editedData.tonnenLose03 + editedData.tonnenGesackt03 + newVal;
                             setEditedData({ ...editedData, tonnenBigbag03: newVal, menge: newMenge });
                           }}
@@ -1846,13 +1942,11 @@ const AnfrageBearbeitungDialog = ({
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                           Gesackt <span className="text-green-600">{werkspreisSackwareAbWerk.toFixed(2)}€/t</span>
                         </label>
-                        <input
-                          type="number"
+                        <NumberInput
                           step="0.5"
                           min="0"
-                          value={editedData.tonnenGesackt03 || ''}
-                          onChange={(e) => {
-                            const newVal = parseFloat(e.target.value) || 0;
+                          value={editedData.tonnenGesackt03}
+                          onChange={(newVal) => {
                             const newMenge = editedData.tonnenLose02 + editedData.tonnenGesackt02 + editedData.tonnenBigbag02 + editedData.tonnenLose03 + newVal + editedData.tonnenBigbag03;
                             setEditedData({ ...editedData, tonnenGesackt03: newVal, menge: newMenge });
                           }}
@@ -1862,6 +1956,34 @@ const AnfrageBearbeitungDialog = ({
                       </div>
                     </div>
                   </div>
+
+                  {/* Zusätzliche Schüttstellen — nur bei losem Material sinnvoll.
+                      Sackware und BigBag werden abgesetzt, nicht geschüttet. */}
+                  {(editedData.tonnenLose02 + editedData.tonnenLose03) > 0 && (
+                    <div className="mt-3 p-4 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Zusätzliche Schüttstellen
+                        </label>
+                        <div className="w-24">
+                          <NumberInput
+                            step="1"
+                            min="0"
+                            max="9"
+                            dezimalstellen={0}
+                            value={editedData.zusaetzlicheSchuettstellen}
+                            onChange={(v) => setEditedData({ ...editedData, zusaetzlicheSchuettstellen: v })}
+                            className="w-full px-3 py-2 border-2 border-gray-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-gray-400"
+                          />
+                        </div>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {editedData.zusaetzlicheSchuettstellen > 0
+                            ? `Abladung an ${editedData.zusaetzlicheSchuettstellen + 1} Stellen · je ${schuettstellenPreis.toFixed(2)} € zusätzlich`
+                            : 'Eine Schüttstelle ist im Preis enthalten'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Summen-Row */}
                   <div className="grid grid-cols-3 gap-3 p-4 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700">
@@ -1875,17 +1997,17 @@ const AnfrageBearbeitungDialog = ({
                       <label className="block text-xs font-medium text-gray-500 dark:text-gray-400">
                         Preis/t {lieferkostenBerechnung.isLoading && <Loader2 className="w-3 h-3 inline animate-spin" />}
                       </label>
-                      <input
-                        type="number"
+                      <NumberInput
                         step="0.50"
                         value={editedData.preisProTonne}
-                        onChange={(e) => {
+                        onChange={(v) => {
                           // Ab jetzt gilt der Wert des Bearbeiters — die Empfehlung
                           // überschreibt ihn nicht mehr.
                           preisManuellGesetzt.current = true;
-                          setEditedData({ ...editedData, preisProTonne: parseFloat(e.target.value) || 0 });
+                          setEditedData({ ...editedData, preisProTonne: v });
                         }}
                         className="w-full text-2xl font-bold text-gray-900 dark:text-white bg-transparent border-0 p-0 focus:ring-0"
+                        dezimalstellen={2}
                       />
                       {preisWeichtAb && preisEmpfehlung && (
                         <button
@@ -1904,12 +2026,12 @@ const AnfrageBearbeitungDialog = ({
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-500 dark:text-gray-400">Fracht</label>
-                      <input
-                        type="number"
+                      <NumberInput
                         step="0.50"
                         value={editedData.frachtkosten}
-                        onChange={(e) => setEditedData({ ...editedData, frachtkosten: parseFloat(e.target.value) || 0 })}
+                        onChange={(v) => setEditedData({ ...editedData, frachtkosten: v })}
                         className="w-full text-2xl font-bold text-gray-900 dark:text-white bg-transparent border-0 p-0 focus:ring-0"
+                        dezimalstellen={2}
                       />
                     </div>
                   </div>
@@ -2104,6 +2226,14 @@ const AnfrageBearbeitungDialog = ({
                     </button>
                   </div>
 
+                  {/* Ersatz für die früher hier eingefügte TM-DZ-Position: Der
+                      Bearbeiter soll wissen, dass der Zuschlag weiterhin gilt —
+                      nur eben als Klausel und mit dem Preis vom Liefertag. */}
+                  <p className="-mt-2 mb-3 text-xs text-gray-500 dark:text-gray-400">
+                    Der Dieselpreiszuschlag steht als Klausel auf dem Angebot und wird
+                    erst mit der Rechnung zum Leistungsdatum berechnet.
+                  </p>
+
                   {/* Artikel-Suche */}
                   {showArtikelSuche && (
                     <div className="mb-4 p-4 bg-white dark:bg-slate-900 rounded-xl border border-green-200 dark:border-green-800">
@@ -2155,7 +2285,7 @@ const AnfrageBearbeitungDialog = ({
                             />
                             <div className="flex items-center gap-0.5 flex-shrink-0">
                               <button
-                                onClick={() => setAllePositionen((prev) => verschiebeInListe(prev, index, -1))}
+                                onClick={() => { setPositionenManuell(true); setAllePositionen((prev) => verschiebeInListe(prev, index, -1)); }}
                                 disabled={index === 0}
                                 className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded disabled:opacity-30 disabled:hover:bg-transparent"
                                 title="Position nach oben"
@@ -2163,7 +2293,7 @@ const AnfrageBearbeitungDialog = ({
                                 <ArrowUp className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => setAllePositionen((prev) => verschiebeInListe(prev, index, 1))}
+                                onClick={() => { setPositionenManuell(true); setAllePositionen((prev) => verschiebeInListe(prev, index, 1)); }}
                                 disabled={index === allePositionen.length - 1}
                                 className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded disabled:opacity-30 disabled:hover:bg-transparent"
                                 title="Position nach unten"
@@ -2188,12 +2318,9 @@ const AnfrageBearbeitungDialog = ({
                           <div className="flex items-center gap-2 flex-wrap">
                             {/* Menge */}
                             <div className="flex items-center gap-1">
-                              <input
-                                type="number"
+                              <NumberInput
                                 value={pos.menge}
-                                onChange={(e) =>
-                                  aenderePosition(index, { menge: parseFloat(e.target.value) || 0 })
-                                }
+                                onChange={(v) => aenderePosition(index, { menge: v })}
                                 className="w-16 px-2 py-1 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-right focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                 step="0.5"
                                 min="0"
@@ -2205,15 +2332,13 @@ const AnfrageBearbeitungDialog = ({
 
                             {/* Einzelpreis */}
                             <div className="flex items-center gap-1">
-                              <input
-                                type="number"
+                              <NumberInput
                                 value={pos.einzelpreis}
-                                onChange={(e) =>
-                                  aenderePosition(index, { einzelpreis: parseFloat(e.target.value) || 0 })
-                                }
+                                onChange={(v) => aenderePosition(index, { einzelpreis: v })}
                                 className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-right focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                 step="0.50"
                                 min="0"
+                                dezimalstellen={2}
                               />
                               <span className="text-sm text-gray-500 dark:text-gray-400">EUR</span>
                             </div>
@@ -2227,7 +2352,7 @@ const AnfrageBearbeitungDialog = ({
 
                             {/* Löschen */}
                             <button
-                              onClick={() => setAllePositionen(prev => prev.filter((_, i) => i !== index))}
+                              onClick={() => { setPositionenManuell(true); setAllePositionen(prev => zieheFrachtpauschaleNach(prev.filter((_, i) => i !== index))); }}
                               className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg ml-auto"
                               title="Position entfernen"
                             >

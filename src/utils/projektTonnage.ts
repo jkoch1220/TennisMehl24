@@ -30,9 +30,13 @@ export interface ProjektTonnage {
   quelle: TonnageQuelle;
 }
 
+// „beauftragt" deckt drei Quellen ab: die Positionen aus AB/Angebot, das Feld
+// `beauftragteTonnen` und ungewogene `liefergewicht`-Werte aus dem Altbestand.
+// Das Label sagt deshalb nicht mehr „laut Positionen" — das stimmte nur im
+// ersten Fall, stand aber als Tooltip auf jeder Karte.
 const QUELLE_LABEL: Record<TonnageQuelle, string> = {
   gewogen: 'gewogene Liefermenge',
-  beauftragt: 'beauftragte Menge laut Positionen',
+  beauftragt: 'beauftragte Menge',
   angefragt: 'angefragte Menge',
 };
 
@@ -93,6 +97,34 @@ export function projektTonnage(projekt: Projekt): ProjektTonnage | null {
   }
 
   return null;
+}
+
+/**
+ * Die Menge eines Projekts als Zahl, für Anzeige und Rechnung — 0, wenn keine
+ * Quelle etwas hergibt.
+ *
+ * Kanban-Karte, Liste, Kartenansicht, Mobilansicht und Statistik lasen bis
+ * 09/2026 direkt `angefragteMenge`. Das ist die gröbste der drei Quellen und
+ * beim Massenangebot gar nicht gesetzt — Karten zeigten dort keine Tonnage,
+ * obwohl die Menge in den Angebotspositionen stand (Vorschlag 2).
+ */
+export function projektTonnen(projekt: Projekt): number {
+  return projektTonnage(projekt)?.tonnen ?? 0;
+}
+
+/**
+ * Menge für die Anzeige, deutsch und ohne Einheit („24,5", „1.250").
+ *
+ * Aus Positionen summierte Mengen haben oft Nachkommastellen aus der
+ * Sackware-Umrechnung (40 kg je Sack); ungerundet stand auf der Kanban-Karte
+ * „12.640000000000001t". Höchstens eine Nachkommastelle reicht für die Karte.
+ */
+export function formatProjektTonnen(tonnen: number): string {
+  // Kleinstmengen (ein einzelner Sack sind 0,04 t) würden auf „0" gerundet —
+  // die Karte zeigte den Block dann wegen „Menge > 0" an und schrieb „0t"
+  // hinein. Unter 0,1 t deshalb mit zwei Stellen.
+  const stellen = tonnen > 0 && tonnen < 0.1 ? 2 : 1;
+  return tonnen.toLocaleString('de-DE', { maximumFractionDigits: stellen });
 }
 
 export interface TonnageSumme {

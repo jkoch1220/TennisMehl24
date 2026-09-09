@@ -25,6 +25,13 @@ import {
   berechneMindermengenpauschale,
 } from '../constants/artikelPreise';
 import { berechneSpeditionskosten } from '../constants/pricing';
+import { summierePositionsTonnen } from '../utils/tonnage';
+import {
+  SCHUETTSTELLE_ARTIKEL,
+  SCHUETTSTELLE_BESCHREIBUNG,
+  SCHUETTSTELLE_PREIS_FALLBACK,
+  berechneSchuettstellenAufpreis,
+} from '../utils/schuettstellen';
 import { sucheArtikelNachNummer } from './artikelService';
 import { Artikel } from '../types/artikel';
 
@@ -400,7 +407,12 @@ export async function verarbeiteAnfrageVollstaendig(
         saisonjahr: new Date().getFullYear(),
         herkunft: 'anfrage',
         status: 'angebot',
-        angefragteMenge: input.anfrage.analysiert?.menge,
+        // Die angebotenen Positionen, nicht der Rohwert aus der E-Mail-Extraktion.
+        // Der Bearbeiter passt die Mengen im Dialog an; die Extraktion kennt
+        // ausserdem gar kein BigBag-Feld und lag damit systematisch zu niedrig.
+        // Fällt nichts an (reine Dienstleistung), bleibt der Rohwert als Notnagel.
+        angefragteMenge:
+          summierePositionsTonnen(input.positionen, 'auswertung') || input.anfrage.analysiert?.menge,
         preisProTonne: input.preisProTonne,
         ansprechpartner: input.kundenDaten.ansprechpartner,
         notizen: input.telefonNotizen?.trim() || undefined,
@@ -471,9 +483,11 @@ export async function verarbeiteAnfrageVollstaendig(
         // Klauseln + AGB-Anhang aus dem Anfrage-Dialog
         vertragsklauseln: input.vertragsklauseln,
         agbAnhaengen: input.agbAnhaengen ?? true,
-        // Dieselpreiszuschlag: Der Betrag wird als TM-DZ-Position einkalkuliert, also muss
-        // der Hinweis auch auf dem Dokument stehen — sonst berechnen wir etwas, das wir
-        // nicht erklären. Text richtet sich nach der Staffel der Angebotsgültigkeit.
+        // Dieselpreiszuschlag: NUR die Klausel, kein bezifferter Betrag (Vorschlag 4,
+        // 09/2026). Der Zuschlag hängt am Dieselpreis des Liefertags und wird erst auf
+        // der Rechnung berechnet; ein zum Angebotstag eingesetzter Betrag wäre bis dahin
+        // fast sicher falsch. Die Klausel ist die Grundlage, ihn später zu erheben.
+        // Text richtet sich nach der Staffel der Angebotsgültigkeit.
         dieselpreiszuschlagAktiviert: true,
         dieselpreiszuschlagText: getDieselKlauselText(gueltigBis),
         // Stammdaten für Header/Footer
@@ -696,11 +710,11 @@ export async function erstelleNurKundeUndProjekt(
     try {
       const kundenPlzOrt = formatAdresszeile(input.kundenDaten.plz, input.kundenDaten.ort, input.kundenDaten.land);
 
-      // Berechne Gesamtmenge aus Positionen
-      const gesamtMenge = input.positionen.reduce((sum, pos) => {
-        if (pos.einheit === 't') return sum + pos.menge;
-        return sum;
-      }, 0);
+      // Menge aus den angebotenen Positionen — dieselbe Zählung wie überall
+      // sonst im Portal. Die frühere Eigenbau-Summe zählte nur `einheit === 't'`
+      // und ließ damit Beiladungssäcke in Stück (40 kg) unter den Tisch fallen,
+      // während eine Pauschale in „t" mitgezählt worden wäre.
+      const gesamtMenge = summierePositionsTonnen(input.positionen, 'auswertung');
 
       const projekt = await projektService.createProjekt({
         projektName: input.kundenDaten.name,
@@ -757,9 +771,11 @@ export async function erstelleNurKundeUndProjekt(
         // Klauseln + AGB-Anhang aus dem Anfrage-Dialog
         vertragsklauseln: input.vertragsklauseln,
         agbAnhaengen: input.agbAnhaengen ?? true,
-        // Dieselpreiszuschlag: Der Betrag wird als TM-DZ-Position einkalkuliert, also muss
-        // der Hinweis auch auf dem Dokument stehen — sonst berechnen wir etwas, das wir
-        // nicht erklären. Text richtet sich nach der Staffel der Angebotsgültigkeit.
+        // Dieselpreiszuschlag: NUR die Klausel, kein bezifferter Betrag (Vorschlag 4,
+        // 09/2026). Der Zuschlag hängt am Dieselpreis des Liefertags und wird erst auf
+        // der Rechnung berechnet; ein zum Angebotstag eingesetzter Betrag wäre bis dahin
+        // fast sicher falsch. Die Klausel ist die Grundlage, ihn später zu erheben.
+        // Text richtet sich nach der Staffel der Angebotsgültigkeit.
         dieselpreiszuschlagAktiviert: true,
         dieselpreiszuschlagText: getDieselKlauselText(gueltigBis),
         firmenname: stammdaten.firmenname,
@@ -837,6 +853,16 @@ export interface ErstellePositionenInput {
   lieferart?: string;
   // PLZ für Frachtberechnung
   plz?: string;
+  /**
+   * Zusätzliche Schüttstellen, die der Kunde wünscht (0 = eine Stelle, Normalfall).
+   * Jede weitere wird als Position TM-STS berechnet: Der LKW fährt auf dem Platz
+   * ein Stück weiter und kippt dort den Rest ab.
+   *
+   * Bewusst NICHT über `anzahlAbladestellen` der Routenberechnung: Dann steckte
+   * der Aufpreis unsichtbar im Preis pro Tonne, und zusammen mit dieser Position
+   * würde er doppelt berechnet.
+   */
+  zusaetzlicheSchuettstellen?: number;
   // OPTIONAL: Endpreis pro Tonne (inkl. Lieferkosten aufgeschlagen)
   // Wenn gesetzt, wird dieser Preis statt dem Werkspreis verwendet!
   preisProTonneInklLieferung?: number;
@@ -918,7 +944,8 @@ export async function erstelleAnfragePositionen(
     artikelBeiladung03,
     artikelPE,
     artikelFP, // Frachtkostenpauschale / Mindermengenpauschale
-    artikelPalette // Palette für Speditionsware
+    artikelPalette, // Palette für Speditionsware
+    artikelSchuettstelle // Zusätzliche Schüttstelle
   ] = await Promise.all([
     sucheArtikelNachNummer('TM-ZM-02'),
     sucheArtikelNachNummer('TM-ZM-03'),
@@ -935,6 +962,7 @@ export async function erstelleAnfragePositionen(
     sucheArtikelNachNummer('TM-PE'),
     sucheArtikelNachNummer('TM-FP'),
     sucheArtikelNachNummer('TM-PAL'),
+    sucheArtikelNachNummer('TM-STS'),
   ]);
 
   // ==========================================
@@ -1271,6 +1299,42 @@ export async function erstelleAnfragePositionen(
   // - ab 20 to = keine Pauschale
   // ==========================================
 
+  // ==========================================
+  // ZUSÄTZLICHE SCHÜTTSTELLEN (TM-STS)
+  //
+  // Nur bei losem Material: Der LKW fährt auf dem Platz ein Stück weiter und
+  // kippt dort den Rest ab. Sackware und BigBag werden abgesetzt, nicht geschüttet.
+  //
+  // Die Pauschale steht bewusst als eigene Position im Angebot, statt über die
+  // Routenberechnung im Preis pro Tonne zu verschwinden — so sieht der Kunde
+  // vorher, was der Wunsch kostet, und es gibt hinterher keine Diskussion über
+  // die Standzeit (die im Portal ohnehin nirgends erfasst wird).
+  // ==========================================
+  const aufpreisSTS = berechneSchuettstellenAufpreis(
+    input.zusaetzlicheSchuettstellen,
+    gesamtMengeLose,
+    artikelSchuettstelle?.einzelpreis && artikelSchuettstelle.einzelpreis > 0
+      ? artikelSchuettstelle.einzelpreis
+      : SCHUETTSTELLE_PREIS_FALLBACK
+  );
+  if (aufpreisSTS) {
+    const infoSTS = getArtikelInfo(artikelSchuettstelle, 'Zusätzliche Schüttstelle');
+
+    positionen.push({
+      id: `pos-${Date.now()}-${positionIndex++}`,
+      artikelId: artikelSchuettstelle?.$id,
+      preisQuelle: preisQuelleFuer(artikelSchuettstelle, aufpreisSTS.einzelpreis),
+      artikelnummer: SCHUETTSTELLE_ARTIKEL,
+      bezeichnung: infoSTS.bezeichnung,
+      beschreibung: infoSTS.beschreibung || SCHUETTSTELLE_BESCHREIBUNG,
+      menge: aufpreisSTS.menge,
+      einheit: 'Stk',
+      einzelpreis: aufpreisSTS.einzelpreis,
+      gesamtpreis: aufpreisSTS.gesamtpreis,
+    });
+    gesamtpreisOhneLieferung += aufpreisSTS.gesamtpreis;
+  }
+
   if (gesamtMengeLose > 0) {
     const mindermengenpauschale = berechneMindermengenpauschale(gesamtMengeLose);
 
@@ -1426,7 +1490,7 @@ export async function generiereAngebotsVorschauPDF(
     // Klauseln + AGB-Anhang aus dem Anfrage-Dialog
     vertragsklauseln: input.vertragsklauseln,
     agbAnhaengen: input.agbAnhaengen ?? true,
-    // Dieselpreiszuschlag: siehe oben — berechnen und erklären gehören zusammen
+    // Dieselpreiszuschlag: siehe oben — nur die Klausel, Berechnung erst auf der Rechnung
     dieselpreiszuschlagAktiviert: true,
     dieselpreiszuschlagText: getDieselKlauselText(gueltigBis),
     // Stammdaten für Header/Footer
