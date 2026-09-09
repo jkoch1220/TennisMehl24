@@ -23,7 +23,7 @@ export interface Stammdaten {
   
   // Steuerdaten
   steuernummer?: string;
-  ustIdNr: string; // z.B. "DE 320 029 255"
+  ustIdNr: string; // "DE459375853" (Tennismehl GmbH, HRB 18235)
   
   // Bankdaten
   bankname: string;

@@ -445,7 +445,7 @@ const FirmendatenTab = () => {
                   type="text"
                   value={formData.ustIdNr}
                   onChange={(e) => setFormData({ ...formData, ustIdNr: e.target.value })}
-                  placeholder="z.B. DE 320 029 255"
+                  placeholder="z.B. DE123456789"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
