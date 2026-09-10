@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Archive,
   ArchiveRestore,
@@ -19,8 +20,8 @@ interface PlatzbauerlListeProps {
   onRefresh: () => void;
   /** Zeigt die Liste gerade das Archiv? Dann steht „Zurückholen" an der Karte. */
   archivAnsicht?: boolean;
-  onArchivieren?: (platzbauerId: string, name: string) => void;
-  onAusArchiv?: (platzbauerId: string, name: string) => void;
+  onArchivieren?: (platzbauerId: string) => void;
+  onAusArchiv?: (platzbauerId: string) => void;
 }
 
 const PlatzbauerlListe = ({
@@ -66,8 +67,8 @@ interface PlatzbauerlCardProps {
   data: PlatzbauermitVereinen;
   onClick: () => void;
   archivAnsicht: boolean;
-  onArchivieren?: (platzbauerId: string, name: string) => void;
-  onAusArchiv?: (platzbauerId: string, name: string) => void;
+  onArchivieren?: (platzbauerId: string) => void;
+  onAusArchiv?: (platzbauerId: string) => void;
 }
 
 const PlatzbauerlCard = ({
@@ -87,10 +88,27 @@ const PlatzbauerlCard = ({
   const adresse = platzbauer.lieferadresse || platzbauer.rechnungsadresse;
   const ort = adresse ? `${adresse.plz} ${adresse.ort}` : 'Keine Adresse';
 
+  /**
+   * Die Karte blendet sich beim Archivieren aus, BEVOR sie aus der Liste
+   * fällt. Ohne die kurze Verzögerung springt das Raster hart nach, und beim
+   * schnellen Durchklicken weiß man nicht mehr, welche Karte man getroffen hat.
+   */
+  const [verschwindet, setVerschwindet] = useState(false);
+  const AUSBLENDDAUER = 180;
+
+  const mitAusblenden = (aktion: (id: string) => void) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (verschwindet) return;
+    setVerschwindet(true);
+    setTimeout(() => aktion(platzbauer.id), AUSBLENDDAUER);
+  };
+
   return (
     <div
       onClick={onClick}
-      className="bg-white dark:bg-dark-surface rounded-xl border-2 border-gray-200 dark:border-dark-border hover:border-amber-400 dark:hover:border-amber-500 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+      className={`bg-white dark:bg-dark-surface rounded-xl border-2 border-gray-200 dark:border-dark-border hover:border-amber-400 dark:hover:border-amber-500 shadow-sm hover:shadow-md cursor-pointer group transition-all duration-200 ${
+        verschwindet ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'
+      }`}
     >
       {/* Header */}
       <div className="p-4 border-b border-gray-100 dark:border-dark-border">
@@ -111,10 +129,7 @@ const PlatzbauerlCard = ({
               ? onAusArchiv && (
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAusArchiv(platzbauer.id, platzbauer.name);
-                    }}
+                    onClick={mitAusblenden(onAusArchiv)}
                     title="Platzbauer zurück in die Verwaltung holen"
                     className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded"
                   >
@@ -124,10 +139,7 @@ const PlatzbauerlCard = ({
               : onArchivieren && (
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onArchivieren(platzbauer.id, platzbauer.name);
-                    }}
+                    onClick={mitAusblenden(onArchivieren)}
                     title="Platzbauer aus der Verwaltung nehmen (nichts wird gelöscht)"
                     className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded"
                   >

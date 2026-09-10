@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Users,
@@ -11,6 +11,7 @@ import {
   Archive,
   ArchiveRestore,
   FileText,
+  X,
 } from 'lucide-react';
 import { PlatzbauermitVereinen, PBVStatistik } from '../../types/platzbauer';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
@@ -157,34 +158,125 @@ const PlatzbauerverwaltungPage = () => {
   });
 
   /** Platzbauer archivieren oder zurückholen — beides mit Rückfrage. */
-  const handleArchivieren = async (platzbauerId: string, name: string) => {
-    if (
-      !window.confirm(
-        `„${name}" aus der Platzbauer-Verwaltung nehmen?\n\n` +
-          'Der Platzbauer verschwindet aus Liste, Statistik und Auswertungen. ' +
-          'Gelöscht wird nichts: Projekte, Angebote und Rechnungen bleiben erhalten, ' +
-          'und über „Archiv" lässt er sich jederzeit zurückholen.'
-      )
-    ) {
-      return;
-    }
+  /**
+   * Archivieren ohne Nachfrage und ohne Neuladen (10.09.2026).
+   *
+   * Vorher: `window.confirm`, dann `loadData()` — die ganze Seite lud neu,
+   * Suchfeld und Scrollposition inklusive. Wer achtzig Platzbauer durchsieht,
+   * wartet damit achtzig Mal.
+   *
+   * Jetzt verschwindet die Karte sofort, der Server erfährt es im Hintergrund,
+   * und statt einer Rückfrage VOR der Aktion gibt es „Rückgängig" DANACH.
+   * Schlägt das Speichern fehl, kommt die Karte an ihre Stelle zurück.
+   */
+  const [rueckgaengig, setRueckgaengig] = useState<
+    Array<{ eintrag: PlatzbauermitVereinen; index: number; richtung: 'archiviert' | 'zurückgeholt' }>
+  >([]);
+  const rueckgaengigTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Die Leiste blendet sich nach acht Sekunden aus — Zeit genug für ein Versehen. */
+  const merkeFuerRueckgaengig = useCallback(
+    (eintrag: PlatzbauermitVereinen, index: number, richtung: 'archiviert' | 'zurückgeholt') => {
+      setRueckgaengig((prev) => [...prev, { eintrag, index, richtung }]);
+      if (rueckgaengigTimer.current) clearTimeout(rueckgaengigTimer.current);
+      rueckgaengigTimer.current = setTimeout(() => setRueckgaengig([]), 8000);
+    },
+    []
+  );
+
+  useEffect(
+    () => () => {
+      if (rueckgaengigTimer.current) clearTimeout(rueckgaengigTimer.current);
+    },
+    []
+  );
+
+  /** Karte an ihrer alten Stelle wieder einsetzen. */
+  const setzeZurueck = (eintrag: PlatzbauermitVereinen, index: number) => {
+    setPlatzbauer((prev) => {
+      const kopie = [...prev];
+      kopie.splice(Math.min(index, kopie.length), 0, eintrag);
+      return kopie;
+    });
+  };
+
+  const handleArchivieren = async (platzbauerId: string) => {
+    const index = platzbauer.findIndex((pb) => pb.platzbauer.id === platzbauerId);
+    if (index < 0) return;
+    const eintrag = platzbauer[index];
+
+    setPlatzbauer((prev) => prev.filter((pb) => pb.platzbauer.id !== platzbauerId));
+    setStatistik((prev) =>
+      prev ? { ...prev, gesamtPlatzbauer: Math.max(0, prev.gesamtPlatzbauer - 1) } : prev
+    );
+    merkeFuerRueckgaengig(eintrag, index, 'archiviert');
+
     try {
       await platzbauerverwaltungService.archivierePlatzbauer(platzbauerId);
-      await loadData();
     } catch (error) {
       console.error('Archivieren fehlgeschlagen:', error);
-      window.alert('Der Platzbauer konnte nicht archiviert werden.');
+      setzeZurueck(eintrag, index);
+      setStatistik((prev) =>
+        prev ? { ...prev, gesamtPlatzbauer: prev.gesamtPlatzbauer + 1 } : prev
+      );
+      setRueckgaengig((prev) => prev.filter((r) => r.eintrag.platzbauer.id !== platzbauerId));
+      window.alert(`„${eintrag.platzbauer.name}" konnte nicht archiviert werden.`);
     }
   };
 
-  const handleAusArchiv = async (platzbauerId: string, name: string) => {
-    if (!window.confirm(`„${name}" wieder in die Platzbauer-Verwaltung aufnehmen?`)) return;
+  const handleAusArchiv = async (platzbauerId: string) => {
+    const index = platzbauer.findIndex((pb) => pb.platzbauer.id === platzbauerId);
+    if (index < 0) return;
+    const eintrag = platzbauer[index];
+
+    setPlatzbauer((prev) => prev.filter((pb) => pb.platzbauer.id !== platzbauerId));
+    // Er zählt ab jetzt wieder zu den aktiven — auch wenn die Archivansicht
+    // ihn selbst nicht mehr zeigt.
+    setStatistik((prev) =>
+      prev ? { ...prev, gesamtPlatzbauer: prev.gesamtPlatzbauer + 1 } : prev
+    );
+    merkeFuerRueckgaengig(eintrag, index, 'zurückgeholt');
+
     try {
       await platzbauerverwaltungService.holePlatzbauerAusArchiv(platzbauerId);
-      await loadData();
     } catch (error) {
       console.error('Zurückholen fehlgeschlagen:', error);
-      window.alert('Der Platzbauer konnte nicht zurückgeholt werden.');
+      setzeZurueck(eintrag, index);
+      setStatistik((prev) =>
+        prev ? { ...prev, gesamtPlatzbauer: Math.max(0, prev.gesamtPlatzbauer - 1) } : prev
+      );
+      setRueckgaengig((prev) => prev.filter((r) => r.eintrag.platzbauer.id !== platzbauerId));
+      window.alert(`„${eintrag.platzbauer.name}" konnte nicht zurückgeholt werden.`);
+    }
+  };
+
+  /** Den zuletzt archivierten (bzw. zurückgeholten) Platzbauer wiederherstellen. */
+  const macheRueckgaengig = async () => {
+    const letzter = rueckgaengig[rueckgaengig.length - 1];
+    if (!letzter) return;
+    setRueckgaengig((prev) => prev.slice(0, -1));
+    setzeZurueck(letzter.eintrag, letzter.index);
+    setStatistik((prev) =>
+      prev
+        ? {
+            ...prev,
+            gesamtPlatzbauer:
+              letzter.richtung === 'archiviert'
+                ? prev.gesamtPlatzbauer + 1
+                : Math.max(0, prev.gesamtPlatzbauer - 1),
+          }
+        : prev
+    );
+
+    try {
+      if (letzter.richtung === 'archiviert') {
+        await platzbauerverwaltungService.holePlatzbauerAusArchiv(letzter.eintrag.platzbauer.id);
+      } else {
+        await platzbauerverwaltungService.archivierePlatzbauer(letzter.eintrag.platzbauer.id);
+      }
+    } catch (error) {
+      console.error('Rückgängig fehlgeschlagen:', error);
+      window.alert('Das ließ sich nicht rückgängig machen. Bitte die Ansicht neu laden.');
     }
   };
 
@@ -366,6 +458,40 @@ const PlatzbauerverwaltungPage = () => {
           platzbauer={platzbauer}
           saisonjahr={saisonjahr}
         />
+      )}
+
+      {/* Rückgängig-Leiste: erscheint statt einer Rückfrage vor der Aktion.
+          Sie überlagert nichts Wichtiges und verschwindet nach acht Sekunden. */}
+      {rueckgaengig.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg bg-gray-900 text-white dark:bg-slate-800">
+          <Archive className="w-4 h-4 text-amber-400 shrink-0" />
+          <span className="text-sm">
+            {rueckgaengig.length === 1 ? (
+              <>
+                <strong>{rueckgaengig[0].eintrag.platzbauer.name}</strong>{' '}
+                {rueckgaengig[0].richtung}
+              </>
+            ) : (
+              <>
+                <strong>{rueckgaengig.length}</strong> Platzbauer{' '}
+                {rueckgaengig[rueckgaengig.length - 1].richtung}
+              </>
+            )}
+          </span>
+          <button
+            onClick={macheRueckgaengig}
+            className="text-sm font-medium text-amber-300 hover:text-amber-200 underline underline-offset-2"
+          >
+            Rückgängig
+          </button>
+          <button
+            onClick={() => setRueckgaengig([])}
+            className="text-gray-400 hover:text-white"
+            title="Ausblenden"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       )}
 
       {/* Detail-Popup */}
