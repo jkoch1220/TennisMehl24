@@ -46,6 +46,20 @@ describe('Platzhalter', () => {
     expect(fuelleBelegtext('{unbekannt} {saison}', {})).toBe('{unbekannt} {saison}');
   });
 
+  it('füllt {frachtrechner} in der Lieferbedingungen-Vorbelegung', () => {
+    const texte = alsNachschlage(leseBelegtexte(undefined));
+    const text = belegtext(texte, 'lieferbedingungen', { frachtrechner: 'Rechner: https://x/frachtrechner' });
+    expect(text).toBe('Frei Baustelle, abgeladen\n\nRechner: https://x/frachtrechner');
+  });
+
+  it('die Bemerkung hat eine leere Vorlage und übernimmt einen gepflegten Text', () => {
+    expect(alsNachschlage(leseBelegtexte(undefined)).bemerkung).toBe('');
+    const texte = alsNachschlage(
+      leseBelegtexte(JSON.stringify([{ schluessel: 'bemerkung', text: 'Preise gelten für Saison {saison}.' }]))
+    );
+    expect(belegtext(texte, 'bemerkung', { saison: 2027 })).toBe('Preise gelten für Saison 2027.');
+  });
+
   it('belegtext() holt und füllt in einem Schritt', () => {
     const texte = alsNachschlage(
       leseBelegtexte(JSON.stringify([{ schluessel: 'anrede', text: 'Hallo {platzbauer},' }]))

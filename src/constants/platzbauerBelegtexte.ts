@@ -13,8 +13,14 @@
  *   {saison}      Saisonjahr des Projekts
  *   {projekt}     Projektname
  *   {firma}       eigener Firmenname aus den Stammdaten
+ *   {frachtrechner} Hinweis auf den öffentlichen Frachtkostenrechner (mit Adresse)
  * Ein unbekannter Platzhalter bleibt stehen, statt zu verschwinden — so fällt
  * ein Tippfehler beim Korrekturlesen auf und nicht erst beim Kunden.
+ *
+ * Die Bausteine `lieferbedingungen` und `bemerkung` sind VORBELEGUNGEN: Sie
+ * füllen die Felder im Angebot bzw. in der AB vor und werden dort je Beleg
+ * angepasst und mit dem Beleg gespeichert. Ein leerer Baustein heißt hier wie
+ * überall „Vorlage gilt" — deshalb hat die Bemerkung eine leere Vorlage.
  *
  * NICHT hier: der Staffel-Hinweistext. Der hängt am Abrechnungsmodell und
  * wird in `utils/staffelpreisText.ts` erzeugt bzw. je Angebot überschrieben.
@@ -40,7 +46,9 @@ export type BelegtextSchluessel =
   | 'preiseJeVereinTitel'
   | 'bedarfHinweis'
   | 'grussformel'
-  | 'grussformelKurz';
+  | 'grussformelKurz'
+  | 'lieferbedingungen'
+  | 'bemerkung';
 
 /** Auslieferungszustand — gilt, solange in den Stammdaten nichts gepflegt ist. */
 export const BELEGTEXTE_DEFAULT: Belegtext[] = [
@@ -108,7 +116,23 @@ export const BELEGTEXTE_DEFAULT: Belegtext[] = [
     beschreibung: 'Schlusssatz auf AB, Rechnung, Proforma und Lieferschein',
     text: 'Mit freundlichen Grüßen',
   },
+  {
+    schluessel: 'lieferbedingungen',
+    beschreibung: 'Vorbelegung der Lieferbedingungen im Angebot und in der AB (je Beleg änderbar)',
+    text: 'Frei Baustelle, abgeladen\n\n{frachtrechner}',
+  },
+  {
+    schluessel: 'bemerkung',
+    beschreibung: 'Vorbelegung der Bemerkung im Angebot und in der AB (je Beleg änderbar)',
+    text: '',
+  },
 ];
+
+/** Bausteine, die nur Felder vorbelegen und nicht direkt gedruckt werden. */
+export const VORBELEGUNG_SCHLUESSEL: ReadonlySet<BelegtextSchluessel> = new Set<BelegtextSchluessel>([
+  'lieferbedingungen',
+  'bemerkung',
+]);
 
 /** Werte für die Platzhalter eines Belegs. */
 export interface BelegtextWerte {
@@ -116,6 +140,7 @@ export interface BelegtextWerte {
   saison?: number | string;
   projekt?: string;
   firma?: string;
+  frachtrechner?: string;
 }
 
 /**
@@ -158,7 +183,7 @@ export const alsNachschlage = (texte: Belegtext[]): Belegtexte =>
 
 /** Platzhalter ersetzen; unbekannte bleiben stehen. */
 export const fuelleBelegtext = (text: string, werte: BelegtextWerte = {}): string =>
-  text.replace(/\{(platzbauer|saison|projekt|firma)\}/g, (treffer, name: string) => {
+  text.replace(/\{(platzbauer|saison|projekt|firma|frachtrechner)\}/g, (treffer, name: string) => {
     const wert = (werte as Record<string, unknown>)[name];
     return wert === undefined || wert === null || wert === '' ? treffer : String(wert);
   });

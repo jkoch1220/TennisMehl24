@@ -80,8 +80,7 @@ import {
   leseStandardartikel,
 } from '../../constants/platzbauerStandardartikel';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
-import { frachtrechnerHinweis } from '../../constants/vertragsklauseln';
-import { getPortalPublicUrl } from '../../services/liefernachweisService';
+import { ladeBelegVorbelegung } from '../../utils/platzbauerBelegVorbelegung';
 import {
   speicherePlatzbauerAngebot,
   speichereEntwurf,
@@ -148,6 +147,8 @@ interface AngebotEntwurf {
     gueltigBis: string;
     zahlungsziel: string;
     lieferzeit: string;
+    /** Fehlt in Entwürfen vor 09/2026 – dann gilt die Vorbelegung aus den Belegtexten. */
+    lieferbedingungen?: string;
     bemerkung: string;
   };
 }
@@ -203,6 +204,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
     gueltigBis: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     zahlungsziel: '14 Tage netto',
     lieferzeit: 'Nach Vereinbarung',
+    lieferbedingungen: '',
     bemerkung: '',
   });
 
@@ -247,6 +249,15 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
       try {
         // Standard-Artikel für Ziegelmehl
         const defaultArtikel = ziegelmehlArtikel.find(a => a.artikelnummer === 'TM-ZM-02') || ziegelmehlArtikel[0];
+
+        // Vorbelegung aus den Belegtexten – Entwurf und Dokument überschreiben
+        // sie gleich danach, sofern sie einen eigenen Text tragen.
+        const vorbelegung = await ladeBelegVorbelegung();
+        setFormData(prev => ({
+          ...prev,
+          lieferbedingungen: vorbelegung.lieferbedingungen,
+          bemerkung: prev.bemerkung || vorbelegung.bemerkung,
+        }));
 
         // Gespeicherten Entwurf laden
         const gespeicherterEntwurf = await ladeEntwurf<AngebotEntwurf>(projekt.id, 'angebot');
@@ -328,6 +339,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
                   ...prev,
                   zahlungsziel: stand.formData.zahlungsziel || prev.zahlungsziel,
                   lieferzeit: stand.formData.lieferzeit || prev.lieferzeit,
+                  lieferbedingungen: stand.formData.lieferbedingungen || prev.lieferbedingungen,
                   bemerkung: stand.formData.bemerkung || prev.bemerkung,
                 }));
               }
@@ -1239,12 +1251,10 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
         lieferzeit: formData.lieferzeit,
         frachtkosten: 0,
         verpackungskosten: 0,
-        lieferbedingungenAktiviert: true,
-        // Der Frachtrechner-Link hängt an den Lieferbedingungen, weil er dort
-        // inhaltlich hingehört und weil der PDF-Service diesen Block bereits
-        // umbricht und über Seitenwechsel trägt. Ein eigener Textblock im
-        // Dokument-Service müsste dieselbe Logik noch einmal nachbauen.
-        lieferbedingungen: `Frei Baustelle, abgeladen\n\n${frachtrechnerHinweis(getPortalPublicUrl())}`,
+        // Text aus dem Formular (vorbelegt aus den Belegtexten, inkl.
+        // Frachtrechner-Hinweis über den Platzhalter {frachtrechner}).
+        lieferbedingungenAktiviert: formData.lieferbedingungen.trim().length > 0,
+        lieferbedingungen: formData.lieferbedingungen,
         bemerkung: formData.bemerkung,
         ihreAnsprechpartner: '',
       };
@@ -2481,6 +2491,21 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
               onChange={(e) => updateFormData({ lieferzeit: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Lieferbedingungen
+            </label>
+            <textarea
+              value={formData.lieferbedingungen}
+              onChange={(e) => updateFormData({ lieferbedingungen: e.target.value })}
+              rows={5}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Vorbelegt aus Platzbauer-Verwaltung → Belegtexte; gilt für dieses Angebot und wird mit ihm
+              gespeichert. Leer lassen, wenn der Beleg keine Lieferbedingungen tragen soll.
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

@@ -9,11 +9,12 @@
  * Ein leeres Feld heißt „Vorlage gilt" — deshalb steht die Vorlage als
  * Platzhalter im Eingabefeld und lässt sich je Zeile zurücksetzen.
  */
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { AlertTriangle, Check, FileText, Loader2, RotateCcw, Save } from 'lucide-react';
 import {
   BELEGTEXTE_DEFAULT,
   Belegtext,
+  VORBELEGUNG_SCHLUESSEL,
   leseBelegtexte,
 } from '../../constants/platzbauerBelegtexte';
 import {
@@ -22,7 +23,13 @@ import {
 } from '../../services/stammdatenService';
 
 /** Bausteine, die als mehrzeiliges Feld sinnvoller sind. */
-const MEHRZEILIG = new Set(['preislisteFussnote', 'bedarfHinweis', 'grussformel']);
+const MEHRZEILIG = new Set([
+  'preislisteFussnote',
+  'bedarfHinweis',
+  'grussformel',
+  'lieferbedingungen',
+  'bemerkung',
+]);
 
 const PlatzbauerBelegtexteTab = () => {
   const [texte, setTexte] = useState<Belegtext[]>([]);
@@ -88,7 +95,8 @@ const PlatzbauerBelegtexteTab = () => {
               <code className="text-xs">{'{platzbauer}'}</code>,{' '}
               <code className="text-xs">{'{saison}'}</code>,{' '}
               <code className="text-xs">{'{projekt}'}</code>,{' '}
-              <code className="text-xs">{'{firma}'}</code>.
+              <code className="text-xs">{'{firma}'}</code>,{' '}
+              <code className="text-xs">{'{frachtrechner}'}</code>.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -134,9 +142,23 @@ const PlatzbauerBelegtexteTab = () => {
         {texte.map((eintrag) => {
           const standard = vorlage.get(eintrag.schluessel) ?? '';
           const abweichend = eintrag.text !== standard;
+          const ersteVorbelegung =
+            VORBELEGUNG_SCHLUESSEL.has(eintrag.schluessel) &&
+            texte.find((t) => VORBELEGUNG_SCHLUESSEL.has(t.schluessel))?.schluessel === eintrag.schluessel;
           return (
+            <Fragment key={eintrag.schluessel}>
+            {ersteVorbelegung && (
+              <div className="pt-4">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Vorbelegungen</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-2xl">
+                  Diese Texte füllen die Felder „Lieferbedingungen" und „Bemerkung" vor, wenn ein
+                  Angebot oder eine Auftragsbestätigung neu begonnen wird. Im Beleg selbst lassen sie
+                  sich anpassen und werden dort mitgespeichert. Ein leeres Feld bei der Bemerkung
+                  heißt: keine Vorbelegung.
+                </p>
+              </div>
+            )}
             <div
-              key={eintrag.schluessel}
               className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700 p-4"
             >
               <div className="flex items-start justify-between gap-3 mb-2">
@@ -162,7 +184,7 @@ const PlatzbauerBelegtexteTab = () => {
                 <textarea
                   value={eintrag.text}
                   onChange={(e) => aendern(eintrag.schluessel, e.target.value)}
-                  rows={3}
+                  rows={VORBELEGUNG_SCHLUESSEL.has(eintrag.schluessel) ? 5 : 3}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
                 />
               ) : (
@@ -174,6 +196,7 @@ const PlatzbauerBelegtexteTab = () => {
                 />
               )}
             </div>
+            </Fragment>
           );
         })}
       </div>

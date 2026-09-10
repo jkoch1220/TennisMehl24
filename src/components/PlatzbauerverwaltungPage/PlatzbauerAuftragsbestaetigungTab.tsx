@@ -52,6 +52,7 @@ import {
   ladeAktuellesDokument,
 } from '../../services/platzbauerprojektabwicklungDokumentService';
 import PlatzbauerDokumentVerlauf from './PlatzbauerDokumentVerlauf';
+import { ladeBelegVorbelegung } from '../../utils/platzbauerBelegVorbelegung';
 import { NumberInput } from '../NumberInput';
 
 interface PlatzbauerAuftragsbestaetigungTabProps {
@@ -72,6 +73,8 @@ interface ABEntwurf {
     auftragsbestaetigungsdatum: string;
     zahlungsziel: string;
     lieferzeit: string;
+    /** Fehlt in Entwürfen vor 09/2026 – dann gilt Angebot bzw. Vorbelegung. */
+    lieferbedingungen?: string;
     bemerkung: string;
   };
 }
@@ -100,6 +103,7 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
     auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
     zahlungsziel: '14 Tage netto',
     lieferzeit: 'Nach Vereinbarung',
+    lieferbedingungen: '',
     bemerkung: '',
   });
 
@@ -123,6 +127,15 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
 
       setLaden(true);
       try {
+        // Vorbelegung aus den Belegtexten; Angebot und Entwurf überschreiben
+        // sie gleich danach, sofern sie einen eigenen Text tragen.
+        const vorbelegung = await ladeBelegVorbelegung();
+        setFormData(prev => ({
+          ...prev,
+          lieferbedingungen: vorbelegung.lieferbedingungen,
+          bemerkung: prev.bemerkung || vorbelegung.bemerkung,
+        }));
+
         // Erst prüfen ob ein Entwurf existiert
         const gespeicherterEntwurf = await ladeEntwurf<ABEntwurf>(projekt.id, 'auftragsbestaetigung');
 
@@ -252,6 +265,11 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
             }
             if (angebotDaten.lieferzeit) {
               setFormData(prev => ({ ...prev, lieferzeit: angebotDaten.lieferzeit }));
+            }
+            // Die AB bestätigt, was das Angebot zugesagt hat – also auch dessen
+            // Lieferbedingungen, nicht die (evtl. inzwischen geänderte) Vorlage.
+            if (typeof angebotDaten.lieferbedingungen === 'string' && angebotDaten.lieferbedingungen.trim()) {
+              setFormData(prev => ({ ...prev, lieferbedingungen: angebotDaten.lieferbedingungen }));
             }
 
             // Positionen vom Angebot übernehmen
@@ -441,8 +459,8 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
         lieferzeit: formData.lieferzeit,
         frachtkosten: 0,
         verpackungskosten: 0,
-        lieferbedingungenAktiviert: true,
-        lieferbedingungen: 'Frei Baustelle, abgeladen',
+        lieferbedingungenAktiviert: formData.lieferbedingungen.trim().length > 0,
+        lieferbedingungen: formData.lieferbedingungen,
         bemerkung: formData.bemerkung,
         ihreAnsprechpartner: '',
         abPositionen:
@@ -773,6 +791,20 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
               onChange={(e) => updateFormData({ lieferzeit: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Lieferbedingungen
+            </label>
+            <textarea
+              value={formData.lieferbedingungen}
+              onChange={(e) => updateFormData({ lieferbedingungen: e.target.value })}
+              rows={5}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Übernommen aus dem Angebot, sonst vorbelegt aus Platzbauer-Verwaltung → Belegtexte.
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

@@ -88,6 +88,7 @@ export interface AngebotsStand extends StaffelStand {
     angebotsnummer: string;
     zahlungsziel: string;
     lieferzeit: string;
+    lieferbedingungen: string;
     bemerkung: string;
   };
 }
@@ -329,6 +330,8 @@ export const leseAngebotsStand = (daten: unknown, saisonjahr: number): AngebotsS
       angebotsnummer: typeof geparst?.angebotsnummer === 'string' ? (geparst.angebotsnummer as string) : '',
       zahlungsziel: typeof geparst?.zahlungsziel === 'string' ? (geparst.zahlungsziel as string) : '',
       lieferzeit: typeof geparst?.lieferzeit === 'string' ? (geparst.lieferzeit as string) : '',
+      lieferbedingungen:
+        typeof geparst?.lieferbedingungen === 'string' ? (geparst.lieferbedingungen as string) : '',
       bemerkung: typeof geparst?.bemerkung === 'string' ? (geparst.bemerkung as string) : '',
     },
   };
