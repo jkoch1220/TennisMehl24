@@ -16,6 +16,7 @@
  *                  Dokumentenverlauf des Projekts, Projektfelder gesetzt. Der
  *                  Entwurf BLEIBT liegen, damit sich Kleinigkeiten ändern und
  *                  neu erzeugen lassen, ohne alles noch einmal zu tippen.
+ * `--nur <Kurzname>` beschränkt den Lauf auf einen Platzbauer (z. B. Averbeck).
  * `--mock`          arbeitet auf der Sandbox-Datenbank.
  *
  * Datenquelle: `scripts/daten/platzbauer-angebote-2027.ts` (aus den 2026er
@@ -61,6 +62,8 @@ const SCHREIBEN = hat('--schreiben');
 const UEBERSCHREIBEN = hat('--ueberschreiben');
 const PDF_ORDNER = wert('--pdf');
 const FINALISIEREN = hat('--finalisieren');
+/** `--nur Averbeck` bearbeitet nur diesen Platzbauer (Kurzname aus den Daten). */
+const NUR = wert('--nur');
 
 const heute = new Date();
 const iso = (d: Date) => d.toISOString().split('T')[0];
@@ -408,7 +411,14 @@ const finalisiere = async (daten: PlatzbauerAngebotDaten): Promise<string> => {
     return `⏭️  ${daten.kurz}: Angebot existiert bereits (${vorhandene.documents[0].dokumentNummer})`;
   }
 
-  const angebotsnummer = await naechsteAngebotsnummer(db, DB);
+  // Neuauflage behält die Nummer und zählt die Version hoch — so führt es auch
+  // das Portal. Eine zweite Nummer für dieselbe Vereinbarung hätte den Kunden
+  // vor die Frage gestellt, welche der beiden gilt.
+  const bestehendeNummer = vorhandene.documents
+    .map((d: any) => d.dokumentNummer as string)
+    .filter(Boolean)
+    .sort()[0];
+  const angebotsnummer = bestehendeNummer || (await naechsteAngebotsnummer(db, DB));
   const positionen = pdfPositionen(daten);
   const pdfDaten: any = {
     projekt: { id: projekt.$id, projektName, saisonjahr: SAISON },
@@ -502,7 +512,7 @@ const main = async () => {
     const { db, DB } = appwrite();
     const alle = await ladePlatzbauer(db, DB);
     console.log(`   ${alle.length} Platzbauer im Kundenstamm gefunden.`);
-    for (const daten of PLATZBAUER_ANGEBOTE_2027) {
+    for (const daten of PLATZBAUER_ANGEBOTE_2027.filter((d) => !NUR || d.kurz === NUR)) {
       try {
         console.log(await schreibeEntwurf(db, DB, alle, daten));
       } catch (e: any) {
@@ -513,7 +523,7 @@ const main = async () => {
 
   if (FINALISIEREN) {
     console.log(`\nFinalisiere Angebote ${SAISON} (${MOCK ? 'SANDBOX' : 'PRODUKTION'}):`);
-    for (const daten of PLATZBAUER_ANGEBOTE_2027) {
+    for (const daten of PLATZBAUER_ANGEBOTE_2027.filter((d) => !NUR || d.kurz === NUR)) {
       try {
         console.log(await finalisiere(daten));
       } catch (e: any) {
