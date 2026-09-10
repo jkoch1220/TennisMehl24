@@ -25,6 +25,8 @@
  */
 
 /** Eine Zeile der Standard-Preisliste. */
+import { FRACHTKOSTEN_STAFFEL } from '../utils/frachtkostenCalculations';
+
 export interface PlatzbauerStandardartikel {
   artikelnummer: string;
   /** Nur Anzeige/Notnagel: Gedruckt wird die Bezeichnung aus dem Artikelstamm. */
@@ -39,6 +41,11 @@ export interface PlatzbauerStandardartikel {
   preis?: number | null;
   /** Erläuterung unter der Zeile (z. B. Abrechnungsregel). */
   hinweis?: string;
+  /**
+   * Eigene Mengenstaffel der Leistung (Frachtkostenpauschale). Wird als
+   * eingerückte Zeilen gedruckt; `preis` bleibt dann der Grundpreis bzw. leer.
+   */
+  staffel?: Array<{ text: string; preis: number }>;
   /** Ausgeschaltete Zeilen bleiben in der Vorlage, kommen aber nicht ins Angebot. */
   aktiv: boolean;
 }
@@ -51,7 +58,10 @@ export const PLATZBAUER_STANDARDARTIKEL_DEFAULT: PlatzbauerStandardartikel[] = [
     bezeichnung: 'Frachtkostenpauschale',
     gruppe: 'Fracht & Verpackung',
     preis: null,
-    hinweis: 'Je Anlieferung; entfällt ab der im Angebot genannten Mindestmenge.',
+    hinweis: 'Je Anlieferung, nach Liefermenge gestaffelt:',
+    // Aus `utils/frachtkostenCalculations.ts` — eine Quelle für Berechnung
+    // und Beleg. Ändert sich die Staffel dort, ändert sie sich hier mit.
+    staffel: FRACHTKOSTEN_STAFFEL.map((stufe) => ({ text: stufe.text, preis: stufe.preis })),
     aktiv: true,
   },
   {
@@ -118,10 +128,26 @@ export const leseStandardartikel = (json?: string | null): PlatzbauerStandardart
             ? null
             : Number(e.preis),
         hinweis: e.hinweis ? String(e.hinweis) : undefined,
+        staffel: Array.isArray(e.staffel)
+          ? (e.staffel as Array<Record<string, unknown>>)
+              .map((stufe) => ({
+                text: String(stufe.text ?? '').trim(),
+                preis: Number(stufe.preis),
+              }))
+              .filter((stufe) => stufe.text.length > 0 && Number.isFinite(stufe.preis))
+          : undefined,
         aktiv: e.aktiv !== false,
       }))
       .filter((e) => e.artikelnummer.length > 0)
-      .map((e) => ({ ...e, preis: Number.isFinite(e.preis as number) ? e.preis : null }));
+      .map((e) => ({ ...e, preis: Number.isFinite(e.preis as number) ? e.preis : null }))
+      // Vorlagen, die vor der Staffel gespeichert wurden, bekommen sie hier
+      // nachgereicht — sonst trüge eine einmal gespeicherte Liste die
+      // Frachtstaffel nie, und ihre Änderung im Code bliebe wirkungslos.
+      .map((e) =>
+        e.artikelnummer === 'TM-FP' && !e.staffel?.length
+          ? { ...e, staffel: FRACHTKOSTEN_STAFFEL.map((s) => ({ text: s.text, preis: s.preis })) }
+          : e
+      );
     return liste.length > 0 ? liste : PLATZBAUER_STANDARDARTIKEL_DEFAULT;
   } catch {
     return PLATZBAUER_STANDARDARTIKEL_DEFAULT;
@@ -157,6 +183,7 @@ export interface PreislistenZeile {
   positionsTyp: 'preisliste';
   preislisteGruppe: string;
   preislisteHinweis?: string;
+  preislisteStaffel?: Array<{ text: string; preis: number }>;
 }
 
 /**
@@ -200,6 +227,7 @@ export const baueStandardPreisliste = (
       positionsTyp: 'preisliste',
       preislisteGruppe: eintrag.gruppe,
       preislisteHinweis: eintrag.hinweis?.trim() || undefined,
+      preislisteStaffel: eintrag.staffel?.length ? eintrag.staffel : undefined,
     });
   }
 

@@ -12,12 +12,28 @@
  * vite-node statt tsx, weil die Services `import.meta.env` verwenden.
  */
 import fs from 'fs';
+import { setLogoBase64 } from '../src/services/logoLoader';
+import { readFileSync } from 'fs';
 import {
   generierePlatzbauerAngebotPDF,
   generierePlatzbauerRechnungPDF,
 } from '../src/services/platzbauerdokumentService';
 import type { Stammdaten } from '../src/types/stammdaten';
 
+
+/**
+ * Das Logo rendert das Portal aus einem SVG über Canvas — in Node gibt es
+ * beides nicht. Für die Vorschau wird deshalb das PNG aus `public/` gesetzt,
+ * damit der Beleg aussieht wie der echte.
+ */
+const setzeLogo = () => {
+  try {
+    const png = readFileSync('public/Briefkopf.png');
+    setLogoBase64(`data:image/png;base64,${png.toString('base64')}`);
+  } catch (e) {
+    console.warn('Logo für die Vorschau nicht gefunden — Beleg wird ohne gerendert.');
+  }
+};
 const stammdaten = {
   $id: 'x', firmenname: 'Tennismehl GmbH', firmenstrasse: 'Raiffeisenweg 1', firmenPlz: '97232',
   firmenOrt: 'Giebelstadt', firmenLand: 'DE',
@@ -122,6 +138,7 @@ const rechnungsDaten: any = {
 };
 
 const main = async () => {
+  setzeLogo();
   const out = process.argv[2] || 'angebot.pdf';
   const doc = await generierePlatzbauerAngebotPDF(daten, stammdaten);
   fs.writeFileSync(out, Buffer.from(doc.output('arraybuffer')));

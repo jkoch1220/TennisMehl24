@@ -17,6 +17,7 @@
  * PDFs übernommen). Preise werden NICHT verändert.
  */
 import fs from 'fs';
+import { setLogoBase64 } from '../src/services/logoLoader';
 import path from 'path';
 import { readFileSync } from 'fs';
 import { Client, Databases, ID, Query } from 'node-appwrite';
@@ -28,6 +29,20 @@ import { generierePlatzbauerAngebotPDF } from '../src/services/platzbauerdokumen
 import { standardStaffelKonditionen } from '../src/utils/staffelpreisText';
 import type { Stammdaten } from '../src/types/stammdaten';
 
+
+/**
+ * Das Logo rendert das Portal aus einem SVG über Canvas — in Node gibt es
+ * beides nicht. Für die Vorschau wird deshalb das PNG aus `public/` gesetzt,
+ * damit der Beleg aussieht wie der echte.
+ */
+const setzeLogo = () => {
+  try {
+    const png = readFileSync('public/Briefkopf.png');
+    setLogoBase64(`data:image/png;base64,${png.toString('base64')}`);
+  } catch (e) {
+    console.warn('Logo für die Vorschau nicht gefunden — Beleg wird ohne gerendert.');
+  }
+};
 const args = process.argv.slice(2);
 const hat = (flag: string) => args.includes(flag);
 const wert = (flag: string) => {
@@ -74,6 +89,7 @@ const preislistenPositionen = (daten: PlatzbauerAngebotDaten) =>
     positionsTyp: 'preisliste' as const,
     preislisteGruppe: p.gruppe,
     preislisteHinweis: p.hinweis,
+    preislisteStaffel: p.staffel,
   }));
 
 const zusatzPositionen = (daten: PlatzbauerAngebotDaten) =>
@@ -320,6 +336,7 @@ const schreibeEntwurf = async (
 };
 
 const main = async () => {
+  setzeLogo();
   if (!SCHREIBEN && !PDF_ORDNER) {
     console.log('Nichts zu tun. Aufruf mit --pdf <ordner> und/oder --schreiben.');
     return;

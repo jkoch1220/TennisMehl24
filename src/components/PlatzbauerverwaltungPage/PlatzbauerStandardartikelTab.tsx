@@ -264,13 +264,25 @@ const PlatzbauerStandardartikelTab = () => {
                   className="w-full px-2 py-1.5 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                 />
 
-                <input
-                  type="text"
-                  value={eintrag.hinweis || ''}
-                  onChange={(e) => aendern(index, { hinweis: e.target.value })}
-                  placeholder="z. B. Je Anlieferung"
-                  className="px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-                />
+                <div>
+                  <input
+                    type="text"
+                    value={eintrag.hinweis || ''}
+                    onChange={(e) => aendern(index, { hinweis: e.target.value })}
+                    placeholder="z. B. Je Anlieferung"
+                    className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                  />
+                  {/* Eigene Mengenstaffel (Frachtpauschale): wird im Angebot als
+                      eigene Zeilen gedruckt. Gepflegt wird sie im Code, weil sie
+                      an der Frachtberechnung haengt — hier nur sichtbar machen,
+                      damit niemand sie beim Bearbeiten uebersieht. */}
+                  {eintrag.staffel && eintrag.staffel.length > 0 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Mengenstaffel mit {eintrag.staffel.length} Stufen (
+                      {eintrag.staffel[0].text} …) wird im Angebot ausgewiesen.
+                    </p>
+                  )}
+                </div>
 
                 <div className="flex items-center justify-end gap-1 md:w-24">
                   <button

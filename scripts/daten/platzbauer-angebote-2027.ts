@@ -19,6 +19,8 @@
  * versehentlich der günstigste.
  */
 
+import { FRACHTKOSTEN_STAFFEL } from '../../src/utils/frachtkostenCalculations';
+
 export interface RegionPreisDaten { plzGebiete: string; einzelpreis: number }
 export interface StufeDaten {
   vonMenge: number;
@@ -34,6 +36,8 @@ export interface PreislisteDaten {
   einheit: string;
   preis: number;
   hinweis?: string;
+  /** Eigene Mengenstaffel (Frachtkostenpauschale) – wird als Zeilen gedruckt. */
+  staffel?: Array<{ text: string; preis: number }>;
 }
 export interface PositionDaten {
   artikelnummer: string;
@@ -68,9 +72,14 @@ export interface PlatzbauerAngebotDaten {
   bemerkung?: string;
 }
 
-const FRACHT_HINWEIS =
-  'Staffel je Anlieferung: unter 5,4 t 59,90 € · 5,4–7,4 t 49,90 € · 7,5–11,4 t 39,90 € · ' +
-  '11,5–15,4 t 31,90 € · 15,5–19,9 t 24,90 €';
+// Die Staffel kommt aus der Berechnung selbst — sie stand hier als Fließtext
+// („unter 5,4 t 59,90 € · 5,4–7,4 t 49,90 € · …") und war auf dem Beleg
+// unlesbar. Jetzt eine Quelle, gedruckt als eigene Zeilen.
+const FRACHT_STAFFEL = FRACHTKOSTEN_STAFFEL.map((stufe) => ({
+  text: stufe.text,
+  preis: stufe.preis,
+}));
+const FRACHT_HINWEIS = 'Je Anlieferung, nach Liefermenge gestaffelt:';
 
 const zeile = (
   artikelnummer: string,
@@ -78,11 +87,28 @@ const zeile = (
   gruppe: string,
   einheit: string,
   preis: number,
-  hinweis?: string
-): PreislisteDaten => ({ artikelnummer, bezeichnung, gruppe, einheit, preis, hinweis });
+  hinweis?: string,
+  staffel?: Array<{ text: string; preis: number }>
+): PreislisteDaten => ({ artikelnummer, bezeichnung, gruppe, einheit, preis, hinweis, staffel });
 
-const FRACHT = (preis: number, hinweis = FRACHT_HINWEIS, nummer = 'TM-FP') =>
-  zeile(nummer, nummer === 'TM-FK' ? 'Frachtkosten' : 'Frachtkostenpauschale', 'Fracht & Verpackung', 'Pkt', preis, hinweis);
+/**
+ * Die Frachtkostenpauschale ist für ALLE Platzbauer dieselbe Staffel
+ * (Entscheidung 10.09.2026). In den 2026er Angeboten trug sie je Platzbauer
+ * einen anderen Festpreis — 4,95 € bei Averbeck und Meinecke, 24,90 € bei PTS,
+ * 0,00 € bei Catalkaya. Davon passte nur die 24,90 € überhaupt zu einer Stufe;
+ * die übrigen waren Platzhalter, die niemand mehr erklären konnte. Der Preis
+ * kommt jetzt ausschließlich aus der Staffel.
+ */
+const FRACHT = (nummer = 'TM-FP') =>
+  zeile(
+    nummer,
+    nummer === 'TM-FK' ? 'Frachtkosten' : 'Frachtkostenpauschale',
+    'Fracht & Verpackung',
+    'Pkt',
+    0,
+    FRACHT_HINWEIS,
+    FRACHT_STAFFEL
+  );
 const FOLIE = (preis: number) =>
   zeile('TM-PE', 'PE-Folie zum Abdecken und Unterlegen', 'Fracht & Verpackung', 'Stk', preis);
 const PALETTE = (preis: number) =>
@@ -144,7 +170,7 @@ export const PLATZBAUER_ANGEBOTE_2027: PlatzbauerAngebotDaten[] = [
       ]),
     ],
     preisliste: [
-      FRACHT(4.95), FOLIE(19.2), PALETTE(12.9), SCHUETTSTELLE,
+      FRACHT(), FOLIE(19.2), PALETTE(12.9), SCHUETTSTELLE,
       zeile('TM-LKW-KR', 'Entladung Sackware mit LKW-Ladekran', 'Abladung', 't', 6.9),
       ...SACKWARE(155), ...BIGBAG(125.9),
     ],
@@ -170,7 +196,7 @@ export const PLATZBAUER_ANGEBOTE_2027: PlatzbauerAngebotDaten[] = [
       ]),
     ],
     preisliste: [
-      FRACHT(4.95), FOLIE(18.2), PALETTE(12.5), SCHUETTSTELLE,
+      FRACHT(), FOLIE(18.2), PALETTE(12.5), SCHUETTSTELLE,
       ...SACKWARE(155), ...BIGBAG(125.9),
     ],
     zahlungsziel: '14 Tage netto',
@@ -191,7 +217,9 @@ export const PLATZBAUER_ANGEBOTE_2027: PlatzbauerAngebotDaten[] = [
       ]),
     ],
     preisliste: [
-      FRACHT(0, 'Im Tonnenpreis enthalten (Vereinbarung 2026).'),
+      // 2026 stand hier 0,00 € („im Tonnenpreis enthalten"). Die Pauschale
+      // gilt jetzt für alle Platzbauer gleich.
+      FRACHT(),
       FOLIE(18.2),
     ],
     zahlungsziel: '14 Tage netto',
@@ -212,7 +240,7 @@ export const PLATZBAUER_ANGEBOTE_2027: PlatzbauerAngebotDaten[] = [
         { vonMenge: 700, bisMenge: null, einzelpreis: 109.95 },
       ]),
     ],
-    preisliste: [FRACHT(24.9), FOLIE(18.2), ...SACKWARE(155), ...HYDROCOURT(220, 13.5)],
+    preisliste: [FRACHT(), FOLIE(18.2), ...SACKWARE(155), ...HYDROCOURT(220, 13.5)],
     zahlungsziel: '14 Tage netto',
     lieferzeit: 'Nach Vereinbarung',
     lieferbedingungen: 'Frei Baustelle, abgeladen',
@@ -231,7 +259,7 @@ export const PLATZBAUER_ANGEBOTE_2027: PlatzbauerAngebotDaten[] = [
       ]),
     ],
     preisliste: [
-      FRACHT(4.95, undefined, 'TM-FK'), FOLIE(18.2), PALETTE(12.5), SCHUETTSTELLE,
+      FRACHT('TM-FK'), FOLIE(18.2), PALETTE(12.5), SCHUETTSTELLE,
       ...SACKWARE(155), ...HYDROCOURT(220, 13.5),
     ],
     zahlungsziel: '14 Tage netto',
@@ -282,7 +310,7 @@ export const PLATZBAUER_ANGEBOTE_2027: PlatzbauerAngebotDaten[] = [
       menge: 0,
       einzelpreis: preis,
     })),
-    preisliste: [FRACHT(4.95), FOLIE(18.2), SCHUETTSTELLE, ...HYDROCOURT(165, 20)],
+    preisliste: [FRACHT(), FOLIE(18.2), SCHUETTSTELLE, ...HYDROCOURT(165, 20)],
     zahlungsziel: '14 Tage netto',
     lieferzeit: 'Nach Vereinbarung',
     lieferbedingungen: 'Frei Baustelle, abgeladen',

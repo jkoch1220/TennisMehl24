@@ -187,6 +187,21 @@ export const loadLogoBase64 = async (): Promise<string | null> => {
 };
 
 /**
+ * Logo von außen setzen — für Node-Skripte, die Belege ohne Browser rendern
+ * (`scripts/preview-platzbauerangebot.ts`, `platzbauer-angebote-2027-*`).
+ *
+ * Dort gibt es weder `fetch` auf einen Pfad noch Canvas, das SVG lässt sich
+ * also nicht rendern. Ohne diesen Weg trugen Vorschau-PDFs den Notbehelf aus
+ * `pdfHelpers` (Firmenname in einem roten Kasten) — und sahen dadurch anders
+ * aus als der Beleg, den das Portal erzeugt.
+ *
+ * @param dataUrl PNG als data:-URL, z. B. aus `public/Briefkopf.png`.
+ */
+export const setLogoBase64 = (dataUrl: string | null) => {
+  cachedLogoBase64 = dataUrl;
+};
+
+/**
  * Setzt den Cache zurück (für Tests)
  */
 export const resetLogoCache = () => {

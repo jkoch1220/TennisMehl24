@@ -241,6 +241,12 @@ export interface PlatzbauerAngebotPosition {
   preislisteGruppe?: string;
   /** Erläuterung unter der Zeile, z. B. die Abrechnungsregel. */
   preislisteHinweis?: string;
+  /**
+   * Eigene Mengenstaffel der Leistung — die Frachtkostenpauschale hat eine.
+   * Sie steht als eingerückte Zeilen unter der Leistung, nicht als Fließtext:
+   * „unter 5,4 t … 59,90 €" liest niemand in einer durchlaufenden Zeile.
+   */
+  preislisteStaffel?: Array<{ text: string; preis: number }>;
 
   // Bedarfsposition-Daten (wenn positionsTyp === 'bedarf')
   bedarfsStatus?: BedarfsStatus; // 'geschaetzt' | 'bestaetigt' | 'storniert'

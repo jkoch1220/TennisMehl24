@@ -23,7 +23,8 @@ describe('zerlegePlzGebiete', () => {
   it('kommt mit leer und undefined zurecht', () => {
     expect(zerlegePlzGebiete('')).toEqual([]);
     expect(zerlegePlzGebiete(undefined)).toEqual([]);
-    expect(formatierePlzGebiete('47;;42')).toBe('47; 42');
+    // Anzeige trennt mit Komma – das Semikolon ist reines Eingabezeichen.
+    expect(formatierePlzGebiete('47;;42')).toBe('47, 42');
   });
 });
 
@@ -77,6 +78,7 @@ describe('ermittleStaffelPreis', () => {
     expect(treffer.einzelpreis).toBe(150);
     expect(nbsp(treffer.herkunft)).toContain('400 t – unter 500 t');
     expect(nbsp(treffer.herkunft)).toContain('PLZ 97');
+    expect(treffer.herkunft).not.toContain(';');
   });
 
   it('unterscheidet Regionen innerhalb derselben Stufe', () => {

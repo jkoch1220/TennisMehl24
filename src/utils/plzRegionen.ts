@@ -28,9 +28,19 @@ export const zerlegePlzGebiete = (eingabe?: string | null): string[] => {
     .filter((teil) => /^\d{1,5}$/.test(teil));
 };
 
-/** Anzeigeform einer Gebietsliste: „47; 42". */
+/**
+ * Anzeigeform einer Gebietsliste: „47, 42".
+ *
+ * Das Semikolon ist reines EINGABE-Trennzeichen (es trennt eindeutig, auch
+ * wenn jemand Kommas tippt). Auf dem Kundenbeleg hat es nichts verloren —
+ * dort liest sich eine Aufzählung mit Komma.
+ */
 export const formatierePlzGebiete = (eingabe?: string | null): string =>
-  zerlegePlzGebiete(eingabe).join('; ');
+  zerlegePlzGebiete(eingabe).join(', ');
+
+/** Eingabeform für Masken: die kanonische semikolongetrennte Schreibweise. */
+export const normalisierePlzEingabe = (eingabe?: string | null): string =>
+  zerlegePlzGebiete(eingabe).join(';');
 
 /** Normalisiert eine PLZ auf Ziffern; alles andere (Ausland, leer) ergibt ''. */
 export const normalisierePlz = (plz?: string | null): string =>

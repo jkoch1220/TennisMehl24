@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { berechneMindermengenpauschale } from '../../constants/artikelPreise';
-import { berechneFrachtkostenpauschale } from '../frachtkostenCalculations';
+import { FRACHTKOSTEN_STAFFEL, berechneFrachtkostenpauschale } from '../frachtkostenCalculations';
 import { istLosePosition, summiereLoseTonnage, zieheFrachtpauschaleNach } from '../loseTonnage';
 import type { Position } from '../../types/projektabwicklung';
 
@@ -161,5 +161,34 @@ describe('Nachziehen nach einer Mengenänderung', () => {
     // Sonst löst jeder Aufruf einen Re-Render aus, obwohl nichts passiert ist.
     const unveraendert = mitPauschale(4, 59.9);
     expect(nachziehen(unveraendert)).toBe(unveraendert);
+  });
+});
+
+describe('FRACHTKOSTEN_STAFFEL als Anzeigequelle', () => {
+  it('deckt jede Stufe mit dem Betrag ab, den die Berechnung liefert', () => {
+    // Probepunkt je Stufe: knapp unter der Obergrenze bzw. darüber bei der offenen.
+    const proben: Array<[number, number]> = [
+      [1, 59.9],
+      [5.4, 49.9],
+      [7.4, 49.9],
+      [7.5, 39.9],
+      [11.4, 39.9],
+      [11.5, 31.9],
+      [15.4, 31.9],
+      [15.5, 24.9],
+      [19.9, 24.9],
+      [20, 0],
+      [45, 0],
+    ];
+    for (const [tonnen, erwartet] of proben) {
+      expect(berechneFrachtkostenpauschale(tonnen)).toBe(erwartet);
+    }
+  });
+
+  it('führt die Stufen aufsteigend und endet offen', () => {
+    const grenzen = FRACHTKOSTEN_STAFFEL.map((s) => s.bis);
+    expect(grenzen[grenzen.length - 1]).toBeNull();
+    const echte = grenzen.slice(0, -1) as number[];
+    expect([...echte].sort((a, b) => a - b)).toEqual(echte);
   });
 });

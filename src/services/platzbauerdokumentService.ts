@@ -25,8 +25,6 @@ import {
   staffelEinleitung,
   staffelInfoblockZeilen,
   staffelKopfzeile,
-  staffelKurzfassung,
-  staffelKurzfassungTitel,
   sortiereStaffeln,
   standardStaffelKonditionen,
 } from '../utils/staffelpreisText';
@@ -546,7 +544,18 @@ const hoeheFuer = (doc: jsPDF, zeilen: number, mitKopf = true): number =>
   // 9,5 mm je Zeile: 9,5-pt-Text plus 2 × 2,6 mm Innenabstand aus
   // `belegTabellenStil`. Zu knapp geschätzt, und der Umbruch landet doch
   // mitten in der Stufe.
-  Math.min((mitKopf ? 12 : 3) + zeilen * 9.5, getMaxContentY(doc) - 45);
+  //
+  // TABELLEN_SICHERHEIT gleicht aus, dass autoTable früher umbricht als
+  // `ensureSpace` prüft: Die Tabelle hält `margin.bottom` 35 mm frei,
+  // `getMaxContentY` nur 28 mm. Ohne diese Differenz gibt ensureSpace grünes
+  // Licht für eine Gruppe, die autoTable danach doch trennt.
+  Math.min(
+    (mitKopf ? 12 : 3) + zeilen * 9.5 + TABELLEN_SICHERHEIT,
+    getMaxContentY(doc) - 45
+  );
+
+/** Differenz zwischen autoTables `margin.bottom` (35 mm) und getMaxContentY (28 mm). */
+const TABELLEN_SICHERHEIT = 7;
 
 /**
  * Zeichnet eine Staffeltabelle GRUPPENWEISE: je Mengenstufe eine eigene
@@ -558,27 +567,140 @@ const hoeheFuer = (doc: jsPDF, zeilen: number, mitKopf = true): number =>
  * wiederholt; dazwischen bleibt er weg, sonst zerfiele die Tabelle optisch in
  * lauter Einzeltabellen.
  */
-const zeichneStufenGruppen = async (
+/** Die Überschriftszeile einer Preislisten-Gruppe („Fracht & Verpackung"). */
+const gruppenKopfZeile = (name: string): any[] => [
+  {
+    content: name,
+    colSpan: 3,
+    styles: {
+      fontStyle: 'bold' as const,
+      fontSize: 8.5,
+      textColor: PREISLISTE_FARBE,
+      cellPadding: { top: 3.5, bottom: 1.5, left: 0, right: 2 },
+    },
+  },
+];
+
+/** Eine Gruppe von Tabellenzeilen, die zusammen auf einer Seite stehen müssen. */
+interface Zeilengruppe {
+  zeilen: any[][];
+  /**
+   * Überschrift, unter die diese Gruppe gehört („Abladung"). Nach einem
+   * Seitenumbruch wird sie als „… (Fortsetzung)" wiederholt — sonst steht eine
+   * Leistung auf der Folgeseite ohne erkennbare Zugehörigkeit.
+   */
+  gruppenName?: string;
+  /** Zeilen der nächsten Gruppe unter derselben Überschrift (Witwenschutz). */
+  folgeZeilen?: number;
+  /** Trägt die Gruppe ihre Überschrift schon als erste Zeile? */
+  bringtUeberschrift?: boolean;
+  /**
+   * Kleintext unter einer Zeile, nach Zeilenindex innerhalb der Gruppe.
+   * Wird IN der Zelle gezeichnet, nicht als eigene Tabellenzeile: Eine eigene
+   * Zeile durfte autoTable auf die nächste Seite schieben, und dann stand
+   * „Die erste Schüttstelle ist im Preis enthalten." allein über einer
+   * fremden Leistung.
+   */
+  hinweise?: Record<number, string>;
+}
+
+/**
+ * Kleintext unter der Bezeichnung.
+ *
+ * Die Geometrie ist gerechnet, nicht geraten: Die Zelle beginnt mit 2,6 mm
+ * Innenabstand, die 9,5-pt-Bezeichnung sitzt mit Grundlinie bei etwa 5,9 mm.
+ * Der Kleintext beginnt 3,7 mm darunter — knapper, und er läuft in die
+ * Bezeichnung hinein (genau das passierte im ersten Wurf).
+ */
+const HINWEIS_GROESSE = 7.6;
+const HINWEIS_ABSTAND = 3.1;
+const HINWEIS_BASISLINIE = 9.6;
+const HINWEIS_FARBE: [number, number, number] = [120, 128, 140];
+
+/**
+ * Zeichnet eine Tabelle GRUPPENWEISE: jede Gruppe bleibt auf einer Seite.
+ * Gebraucht für Mengenstufen mit ihren PLZ-Zeilen und für Leistungen mit ihrer
+ * eigenen Staffel — eine Zeile „unter 5,4 t   59,90 €" ist ohne die Leistung
+ * darüber sinnlos.
+ *
+ * Der Spaltenkopf erscheint bei der ersten Gruppe und nach jedem
+ * Seitenwechsel; dazwischen bleibt er weg, sonst zerfiele die Tabelle optisch
+ * in lauter Einzeltabellen.
+ */
+const zeichneGruppenTabelle = async (
   doc: jsPDF,
   startY: number,
   kopf: string[],
-  gruppen: any[][][],
+  gruppen: Zeilengruppe[],
   spalten: Record<number, any>,
+  farbe: [number, number, number],
   stammdaten: Stammdaten
 ): Promise<number> => {
   let yPos = startY;
   let kopfNoetig = true;
 
-  for (const zeilen of gruppen) {
+  for (const gruppe of gruppen) {
+    let hinweise = gruppe.hinweise ?? {};
+    let zeilen = gruppe.zeilen;
+    // Jeder Kleintext macht seine Zeile höher – beim Platzbedarf mitrechnen.
+    const zusatzhoehe = Object.keys(hinweise).length * 4;
+    // Witwenschutz: Eine Gruppenüberschrift darf nicht mit nur einer Zeile am
+    // Seitenfuß stehen bleiben, während der Rest der Gruppe umblättert.
+    const witwenschutz = gruppe.folgeZeilen ? hoeheFuer(doc, gruppe.folgeZeilen, false) : 0;
     const vorher = (doc as any).getCurrentPageInfo().pageNumber;
-    yPos = await ensureSpace(doc, yPos, hoeheFuer(doc, zeilen.length, kopfNoetig), stammdaten);
-    if ((doc as any).getCurrentPageInfo().pageNumber !== vorher) kopfNoetig = true;
+    yPos = await ensureSpace(
+      doc,
+      yPos,
+      hoeheFuer(doc, zeilen.length, kopfNoetig) + zusatzhoehe + witwenschutz,
+      stammdaten
+    );
+    const umgebrochen = (doc as any).getCurrentPageInfo().pageNumber !== vorher;
+    if (umgebrochen) kopfNoetig = true;
+
+    // Nach einem Umbruch die Überschrift wiederholen – außer die Gruppe bringt
+    // sie ohnehin selbst mit (dann ist sie die erste ihrer Überschrift).
+    if (umgebrochen && gruppe.gruppenName && !gruppe.bringtUeberschrift) {
+      zeilen = [gruppenKopfZeile(`${gruppe.gruppenName} (Fortsetzung)`), ...zeilen];
+      // Die Hinweis-Zuordnung hängt am Zeilenindex und verschiebt sich mit.
+      hinweise = Object.fromEntries(
+        Object.entries(hinweise).map(([index, text]) => [Number(index) + 1, text])
+      );
+    }
 
     autoTable(doc, {
       startY: yPos,
       ...(kopfNoetig ? { head: [kopf] } : {}),
       body: zeilen,
-      ...belegTabellenStil(doc, stammdaten, STAFFEL_FARBE, spalten),
+      ...belegTabellenStil(doc, stammdaten, farbe, spalten),
+      // Platz für den Kleintext reservieren und ihn danach selbst setzen:
+      // autoTable kann innerhalb einer Zelle keine zweite Schriftgröße.
+      didParseCell: (data: any) => {
+        if (data.section === 'head') {
+          const spalte = spalten[data.column.index];
+          if (spalte?.halign) data.cell.styles.halign = spalte.halign;
+        }
+        if (data.section === 'body' && data.column.index === 0 && hinweise[data.row.index]) {
+          const zeilen = doc.splitTextToSize(
+            hinweise[data.row.index],
+            (spalten[0]?.cellWidth ?? 100) - 4
+          ).length;
+          data.cell.styles.minCellHeight =
+            HINWEIS_BASISLINIE + (zeilen - 1) * HINWEIS_ABSTAND + 2.4;
+          data.cell.styles.valign = 'top';
+        }
+      },
+      didDrawCell: (data: any) => {
+        if (data.section !== 'body' || data.column.index !== 0) return;
+        const hinweis = hinweise[data.row.index];
+        if (!hinweis) return;
+        const zeilen: string[] = doc.splitTextToSize(hinweis, data.cell.width - 4);
+        doc.setFontSize(HINWEIS_GROESSE);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...HINWEIS_FARBE);
+        doc.text(zeilen, data.cell.x + 2, data.cell.y + HINWEIS_BASISLINIE);
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(9.5);
+      },
     } as any);
     yPos = (doc as any).lastAutoTable.finalY;
     kopfNoetig = false;
@@ -586,6 +708,25 @@ const zeichneStufenGruppen = async (
 
   return yPos;
 };
+
+/** Kurzform für Tabellen ohne Kleintext (Staffelstufen). */
+const zeichneStufenGruppen = (
+  doc: jsPDF,
+  startY: number,
+  kopf: string[],
+  gruppen: any[][][],
+  spalten: Record<number, any>,
+  stammdaten: Stammdaten
+): Promise<number> =>
+  zeichneGruppenTabelle(
+    doc,
+    startY,
+    kopf,
+    gruppen.map((zeilen) => ({ zeilen })),
+    spalten,
+    STAFFEL_FARBE,
+    stammdaten
+  );
 
 /**
  * Beschriftung einer Regionzeile. Deckt der Stufenpreis („übrige Gebiete")
@@ -882,52 +1023,33 @@ const zeichneStaffelBlock = async (
 };
 
 /**
- * Die grüne Box, die bei reinen Staffelbelegen an die Stelle der Summe tritt.
- * Auf der Auftragsbestätigung steht zusätzlich, warum dort keine Summe steht.
+ * Was an der Stelle der Summe steht, wenn es keine gibt.
+ *
+ * Bis 09/2026 stand hier ein grün umrandeter Kasten „Preisberechnung nach
+ * Staffel", der in zwei Sätzen wiederholte, was der Hinweistext über der
+ * Preistabelle bereits ausführlich erklärt. Doppelt erklärt ist nicht
+ * gründlich, sondern verwirrend — der Kasten ist ersatzlos entfallen.
+ *
+ * Auf der Auftragsbestätigung bleibt ein einzelner Satz: Ohne ihn sähe die
+ * fehlende Auftragssumme wie ein Fehler aus.
  */
-const zeichneStaffelKonditionsBox = async (
+const zeichneStaffelSummenhinweis = async (
   doc: jsPDF,
   startY: number,
-  staffelKonditionen: StaffelKonditionen,
   stammdaten: Stammdaten,
   belegart: StaffelBelegart = 'angebot'
 ): Promise<number> => {
-  let summenY = startY;
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  const zeilenQuelle =
-    belegart === 'auftragsbestaetigung'
-      ? [...staffelKurzfassung(staffelKonditionen), STAFFEL_KEINE_SUMME]
-      : staffelKurzfassung(staffelKonditionen);
-  const kurzZeilen: string[] = zeilenQuelle.flatMap(
-    (zeile) => doc.splitTextToSize(zeile, 150) as string[]
-  );
-  const boxHoehe = 9 + kurzZeilen.length * 4 + 3;
-  summenY = await ensureSpace(doc, summenY, boxHoehe + 5, stammdaten);
-  // Gleiche Bauform wie die Hinweisbox: heller Kasten, farbige Kante links.
-  // Die frühere grün umrandete Box war auf einem sonst ruhigen Blatt der
-  // einzige bunte Rahmen.
-  doc.setFillColor(249, 250, 251); // gray-50
-  doc.setDrawColor(229, 231, 235); // gray-200
-  doc.setLineWidth(0.2);
-  doc.rect(25, summenY, 160, boxHoehe, 'FD');
-  doc.setFillColor(21, 128, 61); // green-700
-  doc.rect(25, summenY, 1.2, boxHoehe, 'F');
+  if (belegart !== 'auftragsbestaetigung') return startY;
 
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(21, 128, 61); // green-700
-  doc.text(staffelKurzfassungTitel(belegart), 30, summenY + 6);
-  doc.setFont('helvetica', 'normal');
+  let yPos = await ensureSpace(doc, startY, 14, stammdaten);
   doc.setFontSize(9);
-  doc.setTextColor(55, 65, 81); // gray-700
-  let kurzY = summenY + 12;
-  for (const zeile of kurzZeilen) {
-    doc.text(zeile, 30, kurzY);
-    kurzY += 4;
-  }
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(107, 114, 128);
+  const zeilen: string[] = doc.splitTextToSize(STAFFEL_KEINE_SUMME, 160);
+  doc.text(zeilen, 25, yPos);
   doc.setTextColor(0, 0, 0);
-  return summenY + boxHoehe + 4;
+  yPos += zeilen.length * 4 + 2;
+  return yPos;
 };
 
 /**
@@ -946,7 +1068,87 @@ const zeichnePreislistenBlock = async (
   stammdaten: Stammdaten
 ): Promise<number> => {
   if (positionen.length === 0) return startY;
-  let yPos = await ensureSpace(doc, startY + 4, 45, stammdaten);
+  let yPos = startY + 4;
+
+  // Gruppen in der Reihenfolge ihres ersten Vorkommens; Zeilen ohne Gruppe
+  // laufen unter einer neutralen Überschrift mit.
+  const gruppenNamen: string[] = [];
+  for (const pos of positionen) {
+    const g = pos.preislisteGruppe?.trim() || 'Weitere Konditionen';
+    if (!gruppenNamen.includes(g)) gruppenNamen.push(g);
+  }
+
+  const spalten: Record<number, any> = {
+    0: { cellWidth: 108, valign: 'top' },
+    1: { cellWidth: 22 },
+    2: { cellWidth: 30, halign: 'right', fontStyle: 'bold' },
+  };
+
+  // Eine Zeilengruppe je Leistung: Bezeichnung, ihr Kleintext und ihre eigene
+  // Staffel gehören zusammen und dürfen nie über den Seitenrand getrennt
+  // werden. Die Gruppenüberschrift hängt an der ersten Leistung ihrer Gruppe.
+  const gruppen: Zeilengruppe[] = [];
+  for (const gruppenName of gruppenNamen) {
+    const inGruppe = positionen.filter(
+      (p) => (p.preislisteGruppe?.trim() || 'Weitere Konditionen') === gruppenName
+    );
+
+    inGruppe.forEach((pos, index) => {
+      const zeilen: any[][] = [];
+      const hinweise: Record<number, string> = {};
+
+      const bringtUeberschrift = index === 0 && gruppenNamen.length > 1;
+      if (bringtUeberschrift) zeilen.push(gruppenKopfZeile(gruppenName));
+
+      // Ein für diesen Platzbauer VEREINBARTER Preis schlägt die Staffel.
+      // Andernfalls verschwände er stumm vom Beleg: PTS hat 24,90 € fest
+      // vereinbart — die allgemeine Frachtstaffel an seiner Stelle zu drucken
+      // wäre eine stillschweigende Preisänderung.
+      const eigenerPreis = pos.einzelpreis > 0;
+      const staffel = eigenerPreis ? [] : (pos.preislisteStaffel ?? []);
+      const hinweis = eigenerPreis
+        ? pos.preislisteHinweis?.trim().replace(/, nach Liefermenge gestaffelt:$/, '')
+        : pos.preislisteHinweis?.trim();
+      if (hinweis) hinweise[zeilen.length] = hinweis;
+
+      zeilen.push([
+        pos.bezeichnung,
+        pos.einheit || 'Stk',
+        // Eine Leistung mit eigener Staffel trägt ihren Preis in den
+        // Unterzeilen; eine Zahl in der Kopfzeile wäre dort willkürlich.
+        staffel.length > 0 ? 'nach Menge' : formatWaehrung(pos.einzelpreis),
+      ]);
+
+      for (const stufe of staffel) {
+        // Eine Stufe mit 0,00 € heißt: Die Pauschale fällt weg. „entfällt"
+        // sagt das, ohne dass der Leser einen Nullbetrag deuten muss.
+        zeilen.push([
+          `    ${stufe.text}`,
+          '',
+          stufe.preis > 0 ? formatWaehrung(stufe.preis) : 'entfällt',
+        ]);
+      }
+
+      gruppen.push({
+        zeilen,
+        hinweise,
+        gruppenName: gruppenNamen.length > 1 ? gruppenName : undefined,
+        bringtUeberschrift,
+        // Nur die überschrifttragende Gruppe hält Platz für die nächste frei.
+        folgeZeilen: bringtUeberschrift ? (inGruppe[1] ? 1 : 0) : 0,
+      });
+    });
+  }
+
+  // Platz für Überschrift plus die ERSTE Gruppe sichern, bevor die Überschrift
+  // steht: Sonst bleibt „Zusatzleistungen – Preise je Einheit" allein am
+  // Seitenfuß zurück, während die Tabelle erst auf der nächsten Seite beginnt.
+  const ersteGruppe = gruppen[0];
+  const platzErsteGruppe = ersteGruppe
+    ? hoeheFuer(doc, ersteGruppe.zeilen.length, true) +
+      Object.keys(ersteGruppe.hinweise ?? {}).length * 4
+    : 0;
+  yPos = await ensureSpace(doc, yPos, 14 + platzErsteGruppe, stammdaten);
 
   yPos = zeichneAbschnittskopf(
     doc,
@@ -956,68 +1158,16 @@ const zeichnePreislistenBlock = async (
     PREISLISTE_FARBE
   );
 
-  // Gruppen in der Reihenfolge ihres ersten Vorkommens; Zeilen ohne Gruppe
-  // laufen unter einer neutralen Überschrift mit.
-  const gruppen: string[] = [];
-  for (const pos of positionen) {
-    const g = pos.preislisteGruppe?.trim() || 'Weitere Konditionen';
-    if (!gruppen.includes(g)) gruppen.push(g);
-  }
-
-  const body: any[] = [];
-  for (const gruppe of gruppen) {
-    if (gruppen.length > 1) {
-      body.push([
-        {
-          content: gruppe,
-          colSpan: 3,
-          styles: {
-            fontStyle: 'bold',
-            fontSize: 8.5,
-            textColor: PREISLISTE_FARBE,
-            fillColor: [255, 255, 255] as [number, number, number],
-            cellPadding: { top: 3, bottom: 1.5, left: 0, right: 2 },
-          },
-        },
-      ]);
-    }
-    for (const pos of positionen.filter(
-      (p) => (p.preislisteGruppe?.trim() || 'Weitere Konditionen') === gruppe
-    )) {
-      body.push([pos.bezeichnung, pos.einheit || 'Stk', formatWaehrung(pos.einzelpreis)]);
-      // Die Abrechnungsregel bekommt eine eigene, kleine graue Zeile. In der
-      // Bezeichnungszelle könnte autoTable sie nicht abgesetzt formatieren –
-      // sie stünde gleich groß und gleich schwarz neben dem Leistungsnamen.
-      const hinweis = pos.preislisteHinweis?.trim();
-      if (hinweis) {
-        body.push([
-          {
-            content: hinweis,
-            colSpan: 3,
-            styles: {
-              fontSize: 8,
-              textColor: [107, 114, 128] as [number, number, number],
-              cellPadding: { top: 0, bottom: 2.2, left: 0, right: 2 },
-            },
-          },
-        ]);
-      }
-    }
-  }
-
-  autoTable(doc, {
-    startY: yPos,
-    head: [['Leistung', 'Einheit', 'Preis netto']],
-    body,
-    ...belegTabellenStil(doc, stammdaten, PREISLISTE_FARBE, {
-      0: { cellWidth: 110, valign: 'top' },
-      1: { cellWidth: 22 },
-      2: { cellWidth: 28, halign: 'right', fontStyle: 'bold' },
-    }),
-    alternateRowStyles: { fillColor: [255, 255, 255] as [number, number, number] },
-  } as any);
-
-  yPos = (doc as any).lastAutoTable.finalY + 3;
+  yPos = await zeichneGruppenTabelle(
+    doc,
+    yPos,
+    ['Leistung', 'Einheit', 'Preis netto'],
+    gruppen,
+    spalten,
+    PREISLISTE_FARBE,
+    stammdaten
+  );
+  yPos += 4;
 
   doc.setFontSize(8);
   doc.setTextColor(107, 114, 128);
@@ -1176,7 +1326,15 @@ export const generierePlatzbauerAngebotPDF = async (
     // Alle normalen Positionen (inkl. alte Struktur falls keine erweiterten)
     const positionenZuZeigen = normalPositionen.length > 0 ? normalPositionen : daten.angebotPositionen!;
 
-    tableHeaders = ['Pos.', 'Art.-Nr.', 'Bezeichnung / Beschreibung', 'Menge', 'Einh.', 'Preis/E', 'Gesamt'];
+    // Tragen ALLE Zeilen die Menge 0, ist das keine Bestellung, sondern eine
+    // Preisvereinbarung je Verein (so führt K.S.D. sein Angebot). Dann fallen
+    // Mengen- und Summenspalte weg: „0.0 t" und „0,00 €" in jeder Zeile sind
+    // kein Inhalt, sondern Rauschen.
+    const nurPreise = positionenZuZeigen.every((pos) => !pos.menge);
+
+    tableHeaders = nurPreise
+      ? ['Pos.', 'Art.-Nr.', 'Bezeichnung / Beschreibung', 'Einheit', 'Preis je Einheit']
+      : ['Pos.', 'Art.-Nr.', 'Bezeichnung / Beschreibung', 'Menge', 'Einh.', 'Preis/E', 'Gesamt'];
     tableData = positionenZuZeigen.map((pos, index) => {
       let beschreibungText = pos.bezeichnung || '';
       if (pos.beschreibung) {
@@ -1184,6 +1342,16 @@ export const generierePlatzbauerAngebotPDF = async (
       }
       if (pos.lieferadresse) {
         beschreibungText += `\n${pos.lieferadresse.plz} ${pos.lieferadresse.ort}`;
+      }
+
+      if (nurPreise) {
+        return [
+          (index + 1).toString(),
+          pos.artikelnummer,
+          beschreibungText,
+          pos.einheit || 't',
+          formatWaehrung(pos.einzelpreis),
+        ];
       }
 
       return [
@@ -1203,8 +1371,16 @@ export const generierePlatzbauerAngebotPDF = async (
     yPos = zeichneAbschnittskopf(
       doc,
       yPos,
-      staffelpreisPositionen.length > 0 ? 'Zusätzlich zur Staffel' : 'Angebot',
-      staffelpreisPositionen.length > 0 ? 'Standard- und Zusatzpositionen' : 'Positionen',
+      nurPreise
+        ? 'Je Verein vereinbart'
+        : staffelpreisPositionen.length > 0
+          ? 'Zusätzlich zur Staffel'
+          : 'Angebot',
+      nurPreise
+        ? 'Preise je Verein'
+        : staffelpreisPositionen.length > 0
+          ? 'Standard- und Zusatzpositionen'
+          : 'Positionen',
       primaryColor
     );
 
@@ -1212,7 +1388,13 @@ export const generierePlatzbauerAngebotPDF = async (
       startY: yPos,
       head: [tableHeaders],
       body: tableData,
-      ...belegTabellenStil(doc, stammdaten, primaryColor, {
+      ...belegTabellenStil(doc, stammdaten, primaryColor, nurPreise ? {
+        0: { cellWidth: 11, halign: 'center', textColor: [107, 114, 128] as [number, number, number] },
+        1: { cellWidth: 24, textColor: [107, 114, 128] as [number, number, number] },
+        2: { cellWidth: 79, valign: 'top' },
+        3: { cellWidth: 16 },
+        4: { cellWidth: 30, halign: 'right', fontStyle: 'bold' },
+      } : {
         0: { cellWidth: 11, halign: 'center', textColor: [107, 114, 128] as [number, number, number] },
         1: { cellWidth: 24, textColor: [107, 114, 128] as [number, number, number] },
         2: { cellWidth: 55, valign: 'top' },
@@ -1323,7 +1505,16 @@ export const generierePlatzbauerAngebotPDF = async (
   } else {
     normaleUndBedarfPositionen = daten.positionen;
   }
-  const hatNurStaffelpreise = hatErweitertePositionen && normaleUndBedarfPositionen.length === 0 && staffelpreisPositionen.length > 0;
+  // Keine Summe, wenn es nichts zu summieren gibt: reine Staffelvereinbarung
+  // oder eine Preisliste je Verein (alle Mengen 0). Ein Block mit „Nettobetrag
+  // 0,00 €" unter einem Preisangebot liest sich wie ein Rechenfehler.
+  const alleMengenNull =
+    normaleUndBedarfPositionen.length > 0 &&
+    normaleUndBedarfPositionen.every((pos: any) => !pos.menge);
+  const hatNurStaffelpreise =
+    hatErweitertePositionen &&
+    (normaleUndBedarfPositionen.length === 0 || alleMengenNull) &&
+    (staffelpreisPositionen.length > 0 || alleMengenNull);
   // „Anzahl Positionen" meint die abzurechnenden Zeilen – die Preisliste ist
   // eine Kondition, keine Position, und wird nicht mitgezählt.
   const positionenFuerSummen = hatErweitertePositionen
@@ -1346,7 +1537,7 @@ export const generierePlatzbauerAngebotPDF = async (
 
   if (hatNurStaffelpreise) {
     // Bei reinen Staffelpreis-Angeboten: Info-Box statt Summe, Wortlaut passend zum Abrechnungsmodell
-    summenY = await zeichneStaffelKonditionsBox(doc, summenY, staffelKonditionen, stammdaten);
+    summenY = await zeichneStaffelSummenhinweis(doc, summenY, stammdaten);
   } else {
     // Summenblock mit Rahmen
     // Höhe folgt den tatsächlichen Zeilen: Der frühere feste Kasten (38 mm)
@@ -1691,13 +1882,7 @@ export const generierePlatzbauerAuftragsbestaetigungPDF = async (
     // Eine Saisonvereinbarung hat keine Auftragssumme: An die Stelle des
     // Summenblocks tritt dieselbe Box wie im Angebot, ergänzt um den Satz,
     // warum hier nichts summiert wird.
-    summenY = await zeichneStaffelKonditionsBox(
-      doc,
-      summenY,
-      staffelKonditionen,
-      stammdaten,
-      'auftragsbestaetigung'
-    );
+    summenY = await zeichneStaffelSummenhinweis(doc, summenY, stammdaten, 'auftragsbestaetigung');
   } else {
     const nettobetrag = daten.positionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
     const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
