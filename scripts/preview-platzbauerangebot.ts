@@ -30,8 +30,26 @@ const stammdaten = {
 
 const staffeln = [
   { id: '1', vonMenge: 0, bisMenge: 150, einzelpreis: 118.5 },
-  { id: '2', vonMenge: 150, bisMenge: 300, einzelpreis: 113.5 },
-  { id: '3', vonMenge: 300, bisMenge: null, einzelpreis: 108.5 },
+  {
+    id: '2',
+    vonMenge: 150,
+    bisMenge: 300,
+    einzelpreis: 113.5,
+    regionPreise: [
+      { plzGebiete: '97;92', einzelpreis: 116.5 },
+      { plzGebiete: '47;42', einzelpreis: 121.5 },
+    ],
+  },
+  {
+    id: '3',
+    vonMenge: 300,
+    bisMenge: null,
+    einzelpreis: 108.5,
+    regionPreise: [
+      { plzGebiete: '97;92', einzelpreis: 111.5 },
+      { plzGebiete: '47;42', einzelpreis: 116.5 },
+    ],
+  },
 ];
 
 const staffelPos = (nr: string, bez: string, delta: number) => ({

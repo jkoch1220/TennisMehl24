@@ -1,4 +1,6 @@
 import {
+  Archive,
+  ArchiveRestore,
   MapPin,
   Users,
   Package,
@@ -15,21 +17,30 @@ interface PlatzbauerlListeProps {
   onSelectPlatzbauer: (id: string) => void;
   saisonjahr: number;
   onRefresh: () => void;
+  /** Zeigt die Liste gerade das Archiv? Dann steht „Zurückholen" an der Karte. */
+  archivAnsicht?: boolean;
+  onArchivieren?: (platzbauerId: string, name: string) => void;
+  onAusArchiv?: (platzbauerId: string, name: string) => void;
 }
 
 const PlatzbauerlListe = ({
   platzbauer,
   onSelectPlatzbauer,
+  archivAnsicht = false,
+  onArchivieren,
+  onAusArchiv,
 }: PlatzbauerlListeProps) => {
   if (platzbauer.length === 0) {
     return (
       <div className="text-center py-16">
         <Building2 className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
         <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-          Keine Platzbauer gefunden
+          {archivAnsicht ? 'Das Archiv ist leer' : 'Keine Platzbauer gefunden'}
         </h3>
         <p className="text-gray-500 dark:text-gray-400">
-          Es gibt keine Platzbauer, die den Filterkriterien entsprechen.
+          {archivAnsicht
+            ? 'Hier landen Platzbauer, die aus der Verwaltung genommen wurden.'
+            : 'Es gibt keine Platzbauer, die den Filterkriterien entsprechen.'}
         </p>
       </div>
     );
@@ -42,6 +53,9 @@ const PlatzbauerlListe = ({
           key={pb.platzbauer.id}
           data={pb}
           onClick={() => onSelectPlatzbauer(pb.platzbauer.id)}
+          archivAnsicht={archivAnsicht}
+          onArchivieren={onArchivieren}
+          onAusArchiv={onAusArchiv}
         />
       ))}
     </div>
@@ -51,9 +65,18 @@ const PlatzbauerlListe = ({
 interface PlatzbauerlCardProps {
   data: PlatzbauermitVereinen;
   onClick: () => void;
+  archivAnsicht: boolean;
+  onArchivieren?: (platzbauerId: string, name: string) => void;
+  onAusArchiv?: (platzbauerId: string, name: string) => void;
 }
 
-const PlatzbauerlCard = ({ data, onClick }: PlatzbauerlCardProps) => {
+const PlatzbauerlCard = ({
+  data,
+  onClick,
+  archivAnsicht,
+  onArchivieren,
+  onAusArchiv,
+}: PlatzbauerlCardProps) => {
   const { platzbauer, vereine, projekte, statistik } = data;
 
   // Berechne Projekt-Status-Zusammenfassung
@@ -81,7 +104,38 @@ const PlatzbauerlCard = ({ data, onClick }: PlatzbauerlCardProps) => {
               <span className="truncate">{ort}</span>
             </div>
           </div>
-          <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-amber-500 transition-colors flex-shrink-0" />
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {/* Archivieren/Zurückholen: stopPropagation, sonst öffnet der Klick
+                zusätzlich die Detailansicht der Karte. */}
+            {archivAnsicht
+              ? onAusArchiv && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAusArchiv(platzbauer.id, platzbauer.name);
+                    }}
+                    title="Platzbauer zurück in die Verwaltung holen"
+                    className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded"
+                  >
+                    <ArchiveRestore className="w-4 h-4" />
+                  </button>
+                )
+              : onArchivieren && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onArchivieren(platzbauer.id, platzbauer.name);
+                    }}
+                    title="Platzbauer aus der Verwaltung nehmen (nichts wird gelöscht)"
+                    className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded"
+                  >
+                    <Archive className="w-4 h-4" />
+                  </button>
+                )}
+            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-amber-500 transition-colors" />
+          </div>
         </div>
       </div>
 

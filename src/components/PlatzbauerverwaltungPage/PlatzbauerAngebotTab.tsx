@@ -12,7 +12,7 @@
  * - PDF-Generierung
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { Fragment, useState, useEffect, useRef, useCallback } from 'react';
 import {
   Plus,
   Trash2,
@@ -30,6 +30,7 @@ import {
   Info,
   BarChart3,
   RotateCcw,
+  MapPin,
 } from 'lucide-react';
 import { NumberInput, OptionalNumberInput } from '../NumberInput';
 import {
@@ -43,7 +44,7 @@ import {
 } from '../../types/platzbauer';
 import {
   STAFFEL_MENGENBASEN,
-  STAFFEL_MODELLE,
+  waehlbareStaffelModelle,
   erzeugeStaffelHinweistext,
   staffelGrenzenIdentisch,
   staffelnLueckenlos,
@@ -681,6 +682,83 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
       updated[posIndex] = { ...pos, staffeln };
       return updated;
     });
+  };
+
+  // === PLZ-REGIONEN JE STUFE ===
+  // Ein Platzbauer beliefert mehrere Gegenden; die Fracht macht innerhalb
+  // derselben Mengenstufe den Preisunterschied. Die PLZ-Liste einer Region
+  // gilt für ALLE Sorten (sonst müsste sie mehrfach gepflegt werden), der
+  // Preis bleibt je Sorte verschieden — wie der Stufenpreis auch.
+
+  /** Region in allen Sorten derselben Stufe anlegen, Preis je Sorte vorbelegt. */
+  const regionHinzufuegen = (stufenIndex: number) => {
+    setzeStaffelpreisPositionen(prev =>
+      prev.map(pos => {
+        const stufe = pos.staffeln[stufenIndex];
+        if (!stufe) return pos;
+        const staffeln = [...pos.staffeln];
+        staffeln[stufenIndex] = {
+          ...stufe,
+          regionPreise: [
+            ...(stufe.regionPreise || []),
+            { plzGebiete: '', einzelpreis: stufe.einzelpreis },
+          ],
+        };
+        return { ...pos, staffeln };
+      })
+    );
+  };
+
+  /** PLZ-Gebiete einer Region – in allen Sorten gleich. */
+  const regionGebieteAendern = (stufenIndex: number, regionIndex: number, gebiete: string) => {
+    setzeStaffelpreisPositionen(prev =>
+      prev.map(pos => {
+        const stufe = pos.staffeln[stufenIndex];
+        if (!stufe?.regionPreise?.[regionIndex]) return pos;
+        const regionPreise = [...stufe.regionPreise];
+        regionPreise[regionIndex] = { ...regionPreise[regionIndex], plzGebiete: gebiete };
+        const staffeln = [...pos.staffeln];
+        staffeln[stufenIndex] = { ...stufe, regionPreise };
+        return { ...pos, staffeln };
+      })
+    );
+  };
+
+  /** Preis einer Region – nur für diese Sorte. */
+  const regionPreisAendern = (
+    posIndex: number,
+    stufenIndex: number,
+    regionIndex: number,
+    preis: number
+  ) => {
+    setzeStaffelpreisPositionen(prev => {
+      const pos = prev[posIndex];
+      const stufe = pos?.staffeln[stufenIndex];
+      if (!stufe?.regionPreise?.[regionIndex]) return prev;
+      const regionPreise = [...stufe.regionPreise];
+      regionPreise[regionIndex] = { ...regionPreise[regionIndex], einzelpreis: preis };
+      const staffeln = [...pos.staffeln];
+      staffeln[stufenIndex] = { ...stufe, regionPreise };
+      const updated = [...prev];
+      updated[posIndex] = { ...pos, staffeln };
+      return updated;
+    });
+  };
+
+  const regionEntfernen = (stufenIndex: number, regionIndex: number) => {
+    setzeStaffelpreisPositionen(prev =>
+      prev.map(pos => {
+        const stufe = pos.staffeln[stufenIndex];
+        if (!stufe?.regionPreise?.length) return pos;
+        const regionPreise = stufe.regionPreise.filter((_, i) => i !== regionIndex);
+        const staffeln = [...pos.staffeln];
+        staffeln[stufenIndex] = {
+          ...stufe,
+          regionPreise: regionPreise.length > 0 ? regionPreise : undefined,
+        };
+        return { ...pos, staffeln };
+      })
+    );
   };
 
   /**
@@ -1546,7 +1624,8 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
                   </thead>
                   <tbody>
                     {staffelRaster.map((stufe, stufenIndex) => (
-                      <tr key={stufenIndex} className="align-top">
+                      <Fragment key={stufenIndex}>
+                      <tr className="align-top">
                         <td className="py-1 pr-3 text-gray-500 dark:text-gray-400">{stufenIndex + 1}.</td>
                         <td className="py-1 pr-3">
                           {stufenIndex === 0 ? (
@@ -1633,6 +1712,83 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
                           </button>
                         </td>
                       </tr>
+
+                      {/* PLZ-Regionen dieser Stufe: Die Gebiete gelten für alle
+                          Sorten, der Preis wird je Sorte gepflegt. Ohne Region
+                          gilt der Stufenpreis der Zeile darüber überall. */}
+                      {(staffelpreisPositionen[staffelLeitIndex]?.staffeln[stufenIndex]?.regionPreise || []).map(
+                        (region, regionIndex) => (
+                          <tr key={`${stufenIndex}-region-${regionIndex}`} className="align-top">
+                            <td className="py-1 pr-3"></td>
+                            <td className="py-1 pr-3" colSpan={2}>
+                              <div className="flex items-center gap-2">
+                                <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                <input
+                                  type="text"
+                                  value={region.plzGebiete}
+                                  onChange={(e) =>
+                                    regionGebieteAendern(stufenIndex, regionIndex, e.target.value)
+                                  }
+                                  disabled={angleichNoetig}
+                                  placeholder="PLZ, z. B. 97;92"
+                                  title={'PLZ-Gebiete mit Semikolon trennen. „97“ trifft alle PLZ, die mit 97 beginnen; ein längeres Gebiet („972“) geht vor.'}
+                                  className="w-40 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
+                                />
+                              </div>
+                            </td>
+                            {staffelpreisPositionen.map((sp, posIndex) => {
+                              const regionDerSorte = sp.staffeln[stufenIndex]?.regionPreise?.[regionIndex];
+                              return (
+                                <td key={`${sp.id}-${stufenIndex}-r${regionIndex}`} className="py-1 pr-3">
+                                  {regionDerSorte ? (
+                                    <NumberInput
+                                      value={regionDerSorte.einzelpreis}
+                                      onChange={(v) =>
+                                        regionPreisAendern(posIndex, stufenIndex, regionIndex, v)
+                                      }
+                                      disabled={angleichNoetig}
+                                      className="w-28 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
+                                      step="0.01"
+                                      min="0"
+                                      dezimalstellen={2}
+                                      suffix="€"
+                                    />
+                                  ) : (
+                                    <span className="inline-block w-28 px-2 py-1.5 text-sm text-gray-400">—</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td className="py-1">
+                              <button
+                                type="button"
+                                tabIndex={-1}
+                                onClick={() => regionEntfernen(stufenIndex, regionIndex)}
+                                title="PLZ-Region aus dieser Stufe entfernen"
+                                className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      )}
+
+                      <tr>
+                        <td className="pb-2 pr-3"></td>
+                        <td className="pb-2" colSpan={staffelpreisPositionen.length + 3}>
+                          <button
+                            type="button"
+                            onClick={() => regionHinzufuegen(stufenIndex)}
+                            disabled={angleichNoetig}
+                            className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 disabled:opacity-40"
+                          >
+                            <Plus className="w-3 h-3" />
+                            PLZ-Region für diese Stufe
+                          </button>
+                        </td>
+                      </tr>
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -1893,8 +2049,10 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
             </div>
 
             {/* Abrechnungsmodell */}
+            {/* Nur noch die sofortige Umstellung ist wählbar; ein Altbeleg zeigt
+                zusätzlich sein eigenes Modell, statt still umgestellt zu wirken. */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {STAFFEL_MODELLE.map(modell => {
+              {waehlbareStaffelModelle(staffelKonditionen.abrechnungsmodell).map(modell => {
                 const aktiv = staffelKonditionen.abrechnungsmodell === modell.wert;
                 return (
                   <button

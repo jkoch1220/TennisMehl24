@@ -38,7 +38,18 @@ let projekteCache: ProjekteCache | null = null;
 const KUNDEN_CACHE_TTL = 120000; // 2 Minuten
 const PROJEKTE_CACHE_TTL = 60000; // 1 Minute
 
-async function loadAlleKundenCached(): Promise<SaisonKunde[]> {
+/**
+ * Kundenstamm mit kurzem Cache.
+ *
+ * `mitArchivierten` wird NICHT gecacht: Die Archivansicht ist ein seltener
+ * Sonderfall, und ein zweiter Cache-Eimer hätte nur die Frage aufgeworfen,
+ * welcher von beiden nach einer Änderung veraltet ist.
+ */
+async function loadAlleKundenCached(mitArchivierten = false): Promise<SaisonKunde[]> {
+  if (mitArchivierten) {
+    return saisonplanungService.loadAlleKunden({ mitArchivierten: true });
+  }
+
   const now = Date.now();
 
   // Cache prüfen
@@ -127,9 +138,13 @@ class PlatzbauerverwaltungService {
   /**
    * Alle Platzbauer laden (SaisonKunden mit typ='platzbauer')
    */
-  async loadAllePlatzbauer(): Promise<SaisonKunde[]> {
-    const alleKunden = await loadAlleKundenCached();
-    return alleKunden.filter(k => k.typ === 'platzbauer' && k.aktiv);
+  async loadAllePlatzbauer(optionen: { mitArchivierten?: boolean } = {}): Promise<SaisonKunde[]> {
+    const alleKunden = await loadAlleKundenCached(optionen.mitArchivierten);
+    // Im Archivmodus zählt `aktiv` nicht mehr: Ein archivierter Platzbauer ist
+    // per Definition inaktiv und wäre sonst auch dort unsichtbar.
+    return alleKunden.filter(k =>
+      k.typ === 'platzbauer' && (optionen.mitArchivierten ? true : k.aktiv)
+    );
   }
 
   /**
@@ -146,14 +161,21 @@ class PlatzbauerverwaltungService {
   /**
    * Alle Platzbauer mit zugeordneten Vereinen und Projekten laden
    */
-  async loadAllePlatzbauermitVereinen(saisonjahr: number): Promise<PlatzbauermitVereinen[]> {
+  async loadAllePlatzbauermitVereinen(
+    saisonjahr: number,
+    optionen: { mitArchivierten?: boolean } = {}
+  ): Promise<PlatzbauermitVereinen[]> {
     // Lade alle Kunden (gecached) und Platzbauer-Projekte parallel
     const [alleKunden, alleProjekte] = await Promise.all([
-      loadAlleKundenCached(),
+      loadAlleKundenCached(optionen.mitArchivierten),
       this.loadPlatzbauerprojekte(saisonjahr),
     ]);
 
-    const platzbauer = alleKunden.filter(k => k.typ === 'platzbauer' && k.aktiv);
+    // Archivansicht zeigt ausschließlich die archivierten – sonst stünde das
+    // Archiv als längere Fassung derselben Liste da.
+    const platzbauer = optionen.mitArchivierten
+      ? alleKunden.filter(k => k.typ === 'platzbauer' && k.archiviert === true)
+      : alleKunden.filter(k => k.typ === 'platzbauer' && k.aktiv);
     // NUR Vereine mit Bezugsweg "ueber_platzbauer" - diese bestellen über den Platzbauer
     // Vereine mit "direkt_instandsetzung" gehören in den Instandsetzungs-Tab
     const vereine = alleKunden.filter(
@@ -211,6 +233,31 @@ class PlatzbauerverwaltungService {
            k.standardBezugsweg === 'ueber_platzbauer'
     );
     return vereine.map(v => ({ kunde: v } as SaisonKundeMitDaten));
+  }
+
+  /**
+   * Platzbauer aus der Ansicht nehmen (09/2026).
+   *
+   * Der Kundenstamm führt 80 Platzbauer; gearbeitet wird mit einer Handvoll.
+   * Archivierte verschwinden aus Liste, Statistik und allen Auswertungen —
+   * gelöscht wird nichts, ihre Projekte und Belege bleiben erhalten.
+   */
+  async archivierePlatzbauer(platzbauerId: string, grund?: string): Promise<void> {
+    const kunde = await saisonplanungService.loadKunde(platzbauerId);
+    if (!kunde) throw new Error('Platzbauer nicht gefunden');
+    await saisonplanungService.updateKunde(platzbauerId, {
+      archiviert: true,
+      archiviertAm: new Date().toISOString(),
+      archivGrund: grund?.trim() || 'Über die Platzbauer-Verwaltung archiviert',
+      aktiv: false,
+    });
+    invalidateKundenCache();
+  }
+
+  /** Archivierten Platzbauer zurückholen. */
+  async holePlatzbauerAusArchiv(platzbauerId: string): Promise<void> {
+    await saisonplanungService.holeAusArchiv(platzbauerId);
+    invalidateKundenCache();
   }
 
   /**

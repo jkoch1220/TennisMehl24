@@ -12,7 +12,8 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import QRCode from 'qrcode';
 import { Stammdaten } from '../types/stammdaten';
-import { PlatzbauerPosition, PlatzbauerProjekt, PlatzbauerAngebotPosition, Preisstaffel, StaffelKonditionen } from '../types/platzbauer';
+import { PlatzbauerPosition, PlatzbauerProjekt, PlatzbauerAngebotPosition, Preisstaffel, RegionPreis, StaffelKonditionen } from '../types/platzbauer';
+import { formatierePlzGebiete } from '../utils/plzRegionen';
 import {
   STAFFEL_KEINE_SUMME,
   StaffelBelegart,
@@ -535,6 +536,77 @@ const staffelStufenLabel = (staffel: Preisstaffel, istErste: boolean): string =>
   return `ab ${formatTonnen(staffel.vonMenge)} – unter ${formatTonnen(bis)}`;
 };
 
+/**
+ * Wie hoch wird eine Tabelle mit so vielen Zeilen? Grober Wert für
+ * `ensureSpace`: Kopf plus Zeilenhöhe des Belegstils. Gedeckelt auf das, was
+ * auf eine leere Seite passt — sonst suchte eine lange Staffel endlos nach
+ * Platz, den es nirgends gibt.
+ */
+const hoeheFuer = (doc: jsPDF, zeilen: number, mitKopf = true): number =>
+  // 9,5 mm je Zeile: 9,5-pt-Text plus 2 × 2,6 mm Innenabstand aus
+  // `belegTabellenStil`. Zu knapp geschätzt, und der Umbruch landet doch
+  // mitten in der Stufe.
+  Math.min((mitKopf ? 12 : 3) + zeilen * 9.5, getMaxContentY(doc) - 45);
+
+/**
+ * Zeichnet eine Staffeltabelle GRUPPENWEISE: je Mengenstufe eine eigene
+ * Tabelle, damit eine Stufe mit ihren PLZ-Zeilen nie über den Seitenrand
+ * getrennt wird. Eine Regionzeile („PLZ 74; 90; 91 — 109,95 €/t") ist wertlos,
+ * wenn ihre Mengenstufe auf der Vorseite steht.
+ *
+ * Der Spaltenkopf wird bei der ersten Gruppe und nach jedem Seitenwechsel
+ * wiederholt; dazwischen bleibt er weg, sonst zerfiele die Tabelle optisch in
+ * lauter Einzeltabellen.
+ */
+const zeichneStufenGruppen = async (
+  doc: jsPDF,
+  startY: number,
+  kopf: string[],
+  gruppen: any[][][],
+  spalten: Record<number, any>,
+  stammdaten: Stammdaten
+): Promise<number> => {
+  let yPos = startY;
+  let kopfNoetig = true;
+
+  for (const zeilen of gruppen) {
+    const vorher = (doc as any).getCurrentPageInfo().pageNumber;
+    yPos = await ensureSpace(doc, yPos, hoeheFuer(doc, zeilen.length, kopfNoetig), stammdaten);
+    if ((doc as any).getCurrentPageInfo().pageNumber !== vorher) kopfNoetig = true;
+
+    autoTable(doc, {
+      startY: yPos,
+      ...(kopfNoetig ? { head: [kopf] } : {}),
+      body: zeilen,
+      ...belegTabellenStil(doc, stammdaten, STAFFEL_FARBE, spalten),
+    } as any);
+    yPos = (doc as any).lastAutoTable.finalY;
+    kopfNoetig = false;
+  }
+
+  return yPos;
+};
+
+/**
+ * Beschriftung einer Regionzeile. Deckt der Stufenpreis („übrige Gebiete")
+ * denselben Betrag ab, wird das an die Region gehängt, statt eine zweite Zeile
+ * mit identischem Preis zu drucken.
+ */
+const regionLabel = (region: RegionPreis, stufenpreis: number): string => {
+  const gebiete = formatierePlzGebiete(region.plzGebiete);
+  const name = region.bezeichnung?.trim()
+    ? `${region.bezeichnung.trim()} (PLZ ${gebiete})`
+    : `PLZ ${gebiete}`;
+  const deckelt = Math.abs(region.einzelpreis - stufenpreis) < 0.005;
+  return `    ${name}${deckelt ? ' · übrige Gebiete' : ''}`;
+};
+
+/** Braucht die Stufe eine eigene Zeile für Gebiete ohne Eintrag? */
+const brauchtUebrigeZeile = (staffel: Preisstaffel): boolean =>
+  !(staffel.regionPreise ?? []).some(
+    (r) => Math.abs(r.einzelpreis - staffel.einzelpreis) < 0.005
+  );
+
 /** Schlüssel der Stufenleiter ohne Preise – gleiche Grenzen ergeben eine Matrix. */
 const grenzenSchluessel = (staffeln: Preisstaffel[]): string =>
   [...staffeln]
@@ -608,25 +680,65 @@ const zeichneStaffelBlock = async (
       });
       return werte.every((w) => Math.abs(w - werte[0]) < 0.005) ? werte[0] : null;
     });
+    // Trägt eine Stufe PLZ-Regionen, steht in ihrer Zeile kein Preis mehr:
+    // Darunter folgt je Gebiet eine eigene Zeile und zuletzt „übrige Gebiete"
+    // mit dem Stufenpreis. Eine Ersparnisspalte wäre dann mehrdeutig (welche
+    // Region?) und entfällt.
+    const hatRegionen = staffelnRaster.some((_, idx) =>
+      mitStaffeln.some(
+        (p) => (sortiereStaffeln(p.staffelpreise!.staffeln)[idx]?.regionPreise?.length ?? 0) > 0
+      )
+    );
     const mitErsparnis =
-      ersparnisJeStufe.every((e) => e !== null) && ersparnisJeStufe.some((e) => (e as number) > 0);
+      !hatRegionen &&
+      ersparnisJeStufe.every((e) => e !== null) &&
+      ersparnisJeStufe.some((e) => (e as number) > 0);
 
     const kopf = ['Abnahmemenge', ...mitStaffeln.map((p) => `${p.bezeichnung}\n${p.artikelnummer}`)];
     if (mitErsparnis) kopf.push('Ihr Vorteil');
 
-    const body = staffelnRaster.map((staffel, idx) => {
-      const zeile = [
-        staffelStufenLabel(staffel, idx === 0),
-        ...mitStaffeln.map((p) => {
-          const sortiert = sortiereStaffeln(p.staffelpreise!.staffeln);
-          return `${formatWaehrung(sortiert[idx]?.einzelpreis ?? 0)} / t`;
-        }),
-      ];
-      if (mitErsparnis) {
-        const e = ersparnisJeStufe[idx] as number;
-        zeile.push(e > 0 ? `\u2013 ${formatWaehrung(e)} / t` : '\u2013');
+    const preisJeSorte = (idx: number, regionIndex?: number): string[] =>
+      mitStaffeln.map((p) => {
+        const stufe = sortiereStaffeln(p.staffelpreise!.staffeln)[idx];
+        const preis =
+          regionIndex === undefined
+            ? stufe?.einzelpreis
+            : stufe?.regionPreise?.[regionIndex]?.einzelpreis;
+        return preis === undefined ? '\u2013' : `${formatWaehrung(preis)} / t`;
+      });
+
+    // Eine Gruppe je Mengenstufe: Stufenzeile plus ihre Regionzeilen.
+    const gruppen: any[][][] = [];
+    staffelnRaster.forEach((staffel, idx) => {
+      const body: any[] = [];
+      gruppen.push(body);
+      // Die Gebietsliste steht an der Leitsorte; die Preise kommen je Sorte.
+      const regionen = staffel.regionPreise ?? [];
+      const stufenLabel = staffelStufenLabel(staffel, idx === 0);
+
+      if (regionen.length === 0) {
+        const zeile = [stufenLabel, ...preisJeSorte(idx)];
+        if (mitErsparnis) {
+          const e = ersparnisJeStufe[idx] as number;
+          zeile.push(e > 0 ? `\u2013 ${formatWaehrung(e)} / t` : '\u2013');
+        }
+        body.push(zeile);
+        return;
       }
-      return zeile;
+
+      body.push([
+        {
+          content: stufenLabel,
+          colSpan: mitStaffeln.length + 1,
+          styles: { fontStyle: 'bold' as const },
+        },
+      ]);
+      regionen.forEach((region, regionIndex) => {
+        body.push([regionLabel(region, staffel.einzelpreis), ...preisJeSorte(idx, regionIndex)]);
+      });
+      if (brauchtUebrigeZeile(staffel)) {
+        body.push(['    übrige Gebiete', ...preisJeSorte(idx)]);
+      }
     });
 
     const preisSpalten = mitStaffeln.length + (mitErsparnis ? 1 : 0);
@@ -646,13 +758,7 @@ const zeichneStaffelBlock = async (
       };
     }
 
-    autoTable(doc, {
-      startY: yPos,
-      head: [kopf],
-      body,
-      ...belegTabellenStil(doc, stammdaten, STAFFEL_FARBE, spalten),
-    } as any);
-    yPos = (doc as any).lastAutoTable.finalY + 4;
+    yPos = (await zeichneStufenGruppen(doc, yPos, kopf, gruppen, spalten, stammdaten)) + 4;
 
     // Fußnoten je Sorte (Lieferregion, Bemerkung) – in der Matrix ist dafür
     // kein Platz, sie gehören aber zum Preis.
@@ -701,18 +807,41 @@ const zeichneStaffelBlock = async (
 
       const sortiert = sortiereStaffeln(staffelPos.staffelpreise!.staffeln);
       const basispreis = sortiert[0].einzelpreis;
-      const zeigeVorteil = sortiert.some((s) => basispreis - s.einzelpreis > 0.005);
+      // Wie in der Matrix: Trägt eine Stufe Regionen, steht ihr Preis nicht in
+      // der Stufenzeile, sondern je Gebiet darunter – zuletzt „übrige Gebiete".
+      const hatRegionen = sortiert.some((s) => (s.regionPreise?.length ?? 0) > 0);
+      const zeigeVorteil =
+        !hatRegionen && sortiert.some((s) => basispreis - s.einzelpreis > 0.005);
 
-      const body = sortiert.map((staffel, idx) => {
-        const zeile = [
-          staffelStufenLabel(staffel, idx === 0),
-          `${formatWaehrung(staffel.einzelpreis)} / t`,
-        ];
-        if (zeigeVorteil) {
-          const e = Math.round((basispreis - staffel.einzelpreis) * 100) / 100;
-          zeile.push(e > 0 ? `\u2013 ${formatWaehrung(e)} / t` : '\u2013');
+      const gruppen: any[][][] = [];
+      sortiert.forEach((staffel, idx) => {
+        const body: any[] = [];
+        gruppen.push(body);
+        const stufenLabel = staffelStufenLabel(staffel, idx === 0);
+        const regionen = staffel.regionPreise ?? [];
+
+        if (regionen.length === 0) {
+          const zeile: any[] = [stufenLabel, `${formatWaehrung(staffel.einzelpreis)} / t`];
+          if (zeigeVorteil) {
+            const e = Math.round((basispreis - staffel.einzelpreis) * 100) / 100;
+            zeile.push(e > 0 ? `\u2013 ${formatWaehrung(e)} / t` : '\u2013');
+          }
+          body.push(zeile);
+          return;
         }
-        return zeile;
+
+        body.push([
+          { content: stufenLabel, colSpan: 2, styles: { fontStyle: 'bold' as const } },
+        ]);
+        for (const region of regionen) {
+          body.push([
+            regionLabel(region, staffel.einzelpreis),
+            `${formatWaehrung(region.einzelpreis)} / t`,
+          ]);
+        }
+        if (brauchtUebrigeZeile(staffel)) {
+          body.push(['    übrige Gebiete', `${formatWaehrung(staffel.einzelpreis)} / t`]);
+        }
       });
 
       const kopf = ['Abnahmemenge', 'Preis je Tonne'];
@@ -733,13 +862,7 @@ const zeichneStaffelBlock = async (
             1: { cellWidth: 60, halign: 'right' },
           };
 
-      autoTable(doc, {
-        startY: yPos,
-        head: [kopf],
-        body,
-        ...belegTabellenStil(doc, stammdaten, STAFFEL_FARBE, spalten),
-      } as any);
-      yPos = (doc as any).lastAutoTable.finalY + 6;
+      yPos = (await zeichneStufenGruppen(doc, yPos, kopf, gruppen, spalten, stammdaten)) + 6;
     }
   }
 

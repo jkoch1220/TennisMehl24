@@ -80,9 +80,9 @@ describe('leseStaffelStand', () => {
 
   it('setzt bei einem Altbeleg ohne Konditionen den Saison-Standard ein', () => {
     const stand = leseStaffelStand(angebotsDaten({ staffelKonditionen: undefined }), 2026);
-    expect(stand.konditionen.abrechnungsmodell).toBe('saisonbonus');
+    expect(stand.konditionen.abrechnungsmodell).toBe('sofortumstellung');
     expect(stand.konditionen.mengenbasis).toBe('gesamt');
-    expect(stand.konditionen.zeitraumBis).toBe('2026-10-31');
+    expect(stand.konditionen.zeitraumBis).toBe('2026-04-30');
   });
 
   it('verträgt kaputtes JSON, null und ein leeres Dokument', () => {

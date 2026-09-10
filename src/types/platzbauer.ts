@@ -122,11 +122,38 @@ export interface PlatzbauerPosition {
 
 // ==================== STAFFELPREISE TYPES ====================
 
+/**
+ * Preis einer Lieferregion innerhalb einer Mengenstufe (09/2026).
+ *
+ * Ein Platzbauer beliefert Vereine in mehreren Gegenden; die Fracht macht den
+ * Unterschied. Innerhalb derselben Mengenstufe kostet die Tonne in PLZ 97
+ * deshalb mehr als in PLZ 90.
+ *
+ * `plzGebiete` ist die Eingabe des Sachbearbeiters, semikolongetrennt und mit
+ * beliebig vielen Stellen: „47;42" trifft alle PLZ, die mit 47 oder 42
+ * beginnen. Gilt für eine engere Region etwas anderes, gewinnt das längere
+ * Präfix („972" schlägt „97") — siehe `utils/plzRegionen.ts`.
+ */
+export interface RegionPreis {
+  /** PLZ-Präfixe, semikolongetrennt, z. B. „47;42". */
+  plzGebiete: string;
+  einzelpreis: number;
+  /** Freie Bezeichnung für den Beleg, z. B. „Niederrhein". */
+  bezeichnung?: string;
+}
+
 // Einzelne Staffel für Staffelpreise
 export interface Preisstaffel {
   vonMenge: number;              // Ab dieser Menge gilt der Preis
   bisMenge: number | null;       // Bis zu dieser Menge (null = unbegrenzt)
   einzelpreis: number;           // Preis pro Einheit in dieser Staffel
+  /**
+   * Preise je Lieferregion innerhalb dieser Mengenstufe. Leer oder nicht
+   * gesetzt heißt: `einzelpreis` gilt überall. Passt keine Region zur PLZ des
+   * Vereins, gilt ebenfalls `einzelpreis` — eine Lieferung darf nie ohne Preis
+   * dastehen, nur weil ein Gebiet nicht gepflegt wurde.
+   */
+  regionPreise?: RegionPreis[];
 }
 
 // Staffelpreis-Konfiguration

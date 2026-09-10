@@ -463,3 +463,57 @@ describe('wendeRasterAn', () => {
     expect(wendeRasterAn(staffeln, [])).toBe(staffeln);
   });
 });
+
+describe('Regionpreise überleben die Grenzenpflege', () => {
+  const mitRegion = (): Array<{ artikelBezeichnung: string; staffeln: Preisstaffel[] }> => [
+    {
+      artikelBezeichnung: '0/2',
+      staffeln: [
+        { vonMenge: 0, bisMenge: 200, einzelpreis: 160 },
+        {
+          vonMenge: 200,
+          bisMenge: null,
+          einzelpreis: 150,
+          regionPreise: [{ plzGebiete: '97', einzelpreis: 155 }],
+        },
+      ],
+    },
+    {
+      artikelBezeichnung: '0/3',
+      staffeln: [
+        { vonMenge: 0, bisMenge: 300, einzelpreis: 158 },
+        { vonMenge: 300, bisMenge: null, einzelpreis: 148 },
+      ],
+    },
+  ];
+
+  it('spiegleGrenzen lässt die Regionpreise der Leitsorte stehen', () => {
+    const ergebnis = spiegleGrenzen(mitRegion(), 0);
+    expect(ergebnis[0].staffeln[1].regionPreise?.[0].einzelpreis).toBe(155);
+  });
+
+  it('gleicheGrenzenAn trägt die Regionpreise in die angeglichene Sorte mit', () => {
+    const ergebnis = gleicheGrenzenAn(mitRegion(), 0);
+    expect(ergebnis[0].staffeln[1].regionPreise?.[0].plzGebiete).toBe('97');
+  });
+
+  it('erkennt eine geänderte PLZ-Liste als Änderung', () => {
+    const positionen = mitRegion();
+    const geaendert = [
+      positionen[0],
+      {
+        ...positionen[1],
+        staffeln: [
+          positionen[1].staffeln[0],
+          {
+            ...positionen[1].staffeln[1],
+            regionPreise: [{ plzGebiete: '90', einzelpreis: 140 }],
+          },
+        ],
+      },
+    ];
+    // spiegleGrenzen darf die neue Region nicht als "unverändert" verwerfen
+    const ergebnis = spiegleGrenzen(geaendert, 1);
+    expect(ergebnis[1].staffeln[1].regionPreise?.[0].plzGebiete).toBe('90');
+  });
+});

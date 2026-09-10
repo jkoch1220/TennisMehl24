@@ -8,6 +8,8 @@ import {
   HardHat,
   CalendarDays,
   ListPlus,
+  Archive,
+  ArchiveRestore,
 } from 'lucide-react';
 import { PlatzbauermitVereinen, PBVStatistik } from '../../types/platzbauer';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
@@ -22,6 +24,7 @@ type ViewMode = 'liste' | 'statistik' | 'standardartikel';
 const STORAGE_KEYS = {
   viewMode: 'pbv_viewMode',
   saisonjahr: 'pbv_saisonjahr',
+  archiv: 'pbv_archiv',
 };
 
 const loadSetting = <T,>(key: string, defaultValue: T): T => {
@@ -84,6 +87,15 @@ const PlatzbauerverwaltungPage = () => {
     loadSetting(STORAGE_KEYS.saisonjahr, new Date().getFullYear())
   );
   const [suche, setSuche] = useState('');
+  /**
+   * Archivansicht: zeigt AUSSCHLIESSLICH archivierte Platzbauer. Der
+   * Kundenstamm führt achtzig; gearbeitet wird mit einer Handvoll. Archivieren
+   * löscht nichts — Projekte und Belege bleiben, der Platzbauer verschwindet
+   * nur aus Liste, Statistik und Auswertungen.
+   */
+  const [archivAnsicht, setArchivAnsichtState] = useState(() =>
+    loadSetting(STORAGE_KEYS.archiv, false)
+  );
   const [loading, setLoading] = useState(true);
   const [platzbauer, setPlatzbauer] = useState<PlatzbauermitVereinen[]>([]);
   const [statistik, setStatistik] = useState<PBVStatistik | null>(null);
@@ -96,6 +108,11 @@ const PlatzbauerverwaltungPage = () => {
     saveSetting(STORAGE_KEYS.viewMode, mode);
   }, []);
 
+  const setArchivAnsicht = useCallback((wert: boolean) => {
+    setArchivAnsichtState(wert);
+    saveSetting(STORAGE_KEYS.archiv, wert);
+  }, []);
+
   const setSaisonjahr = useCallback((jahr: number) => {
     setSaisonjahrState(jahr);
     saveSetting(STORAGE_KEYS.saisonjahr, jahr);
@@ -106,7 +123,9 @@ const PlatzbauerverwaltungPage = () => {
     setLoading(true);
     try {
       const [pbData, stats] = await Promise.all([
-        platzbauerverwaltungService.loadAllePlatzbauermitVereinen(saisonjahr),
+        platzbauerverwaltungService.loadAllePlatzbauermitVereinen(saisonjahr, {
+          mitArchivierten: archivAnsicht,
+        }),
         platzbauerverwaltungService.berechneStatistik(saisonjahr),
       ]);
       setPlatzbauer(pbData);
@@ -116,7 +135,7 @@ const PlatzbauerverwaltungPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [saisonjahr]);
+  }, [saisonjahr, archivAnsicht]);
 
   useEffect(() => {
     loadData();
@@ -132,6 +151,38 @@ const PlatzbauerverwaltungPage = () => {
       pb.vereine.some(v => v.kunde.name.toLowerCase().includes(sucheLower))
     );
   });
+
+  /** Platzbauer archivieren oder zurückholen — beides mit Rückfrage. */
+  const handleArchivieren = async (platzbauerId: string, name: string) => {
+    if (
+      !window.confirm(
+        `„${name}" aus der Platzbauer-Verwaltung nehmen?\n\n` +
+          'Der Platzbauer verschwindet aus Liste, Statistik und Auswertungen. ' +
+          'Gelöscht wird nichts: Projekte, Angebote und Rechnungen bleiben erhalten, ' +
+          'und über „Archiv" lässt er sich jederzeit zurückholen.'
+      )
+    ) {
+      return;
+    }
+    try {
+      await platzbauerverwaltungService.archivierePlatzbauer(platzbauerId);
+      await loadData();
+    } catch (error) {
+      console.error('Archivieren fehlgeschlagen:', error);
+      window.alert('Der Platzbauer konnte nicht archiviert werden.');
+    }
+  };
+
+  const handleAusArchiv = async (platzbauerId: string, name: string) => {
+    if (!window.confirm(`„${name}" wieder in die Platzbauer-Verwaltung aufnehmen?`)) return;
+    try {
+      await platzbauerverwaltungService.holePlatzbauerAusArchiv(platzbauerId);
+      await loadData();
+    } catch (error) {
+      console.error('Zurückholen fehlgeschlagen:', error);
+      window.alert('Der Platzbauer konnte nicht zurückgeholt werden.');
+    }
+  };
 
   // Saisonprojekte erstellen
   const handleErstelleSaisonprojekte = async () => {
@@ -252,6 +303,24 @@ const PlatzbauerverwaltungPage = () => {
               <span className="hidden md:inline">Standardartikel</span>
             </button>
           </div>
+
+          {/* Archivansicht */}
+          <button
+            onClick={() => setArchivAnsicht(!archivAnsicht)}
+            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
+              archivAnsicht
+                ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                : 'border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+            }`}
+            title={
+              archivAnsicht
+                ? 'Zurück zu den aktiven Platzbauern'
+                : 'Archivierte Platzbauer anzeigen'
+            }
+          >
+            {archivAnsicht ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+            <span className="hidden md:inline">{archivAnsicht ? 'Archiv verlassen' : 'Archiv'}</span>
+          </button>
         </div>
       </div>
 
@@ -269,6 +338,9 @@ const PlatzbauerverwaltungPage = () => {
           onSelectPlatzbauer={setSelectedPlatzbauerId}
           saisonjahr={saisonjahr}
           onRefresh={loadData}
+          archivAnsicht={archivAnsicht}
+          onArchivieren={handleArchivieren}
+          onAusArchiv={handleAusArchiv}
         />
       ) : (
         <PlatzbauerlStatistik

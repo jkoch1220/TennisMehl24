@@ -28,7 +28,7 @@
  * Referenz zurück. Das ist Funktionsanforderung, kein Feinschliff: Der Entwurf
  * speichert bei jeder neuen Array-Referenz erneut.
  */
-import type { Preisstaffel } from '../types/platzbauer';
+import type { Preisstaffel, RegionPreis } from '../types/platzbauer';
 import { findeStaffel } from './staffelpreisText';
 
 /** Alles, was eine Stufenleiter trägt – im Tab die StaffelpreisPosition. */
@@ -82,13 +82,33 @@ export const grenzenEinheitlich = (positionen: StaffelTraeger[]): boolean => {
   return positionen.every((p) => grenzenSignatur(p.staffeln) === erste);
 };
 
+/**
+ * Regionpreise zählen zur Identität einer Stufe: Ohne sie im Vergleich gälte
+ * eine Stufe, an der nur ein PLZ-Gebiet geändert wurde, als unverändert — die
+ * Änderung würde verworfen, weil hier die alte Referenz zurückkommt.
+ */
+const regionenGleich = (a?: RegionPreis[] | null, b?: RegionPreis[] | null): boolean => {
+  const x = a ?? [];
+  const y = b ?? [];
+  return (
+    x.length === y.length &&
+    x.every(
+      (r, i) =>
+        r.plzGebiete === y[i].plzGebiete &&
+        r.einzelpreis === y[i].einzelpreis &&
+        (r.bezeichnung ?? '') === (y[i].bezeichnung ?? '')
+    )
+  );
+};
+
 const staffelnGleich = (a: Preisstaffel[], b: Preisstaffel[]): boolean =>
   a.length === b.length &&
   a.every(
     (s, i) =>
       s.vonMenge === b[i].vonMenge &&
       (s.bisMenge ?? null) === (b[i].bisMenge ?? null) &&
-      s.einzelpreis === b[i].einzelpreis
+      s.einzelpreis === b[i].einzelpreis &&
+      regionenGleich(s.regionPreise, b[i].regionPreise)
   );
 
 /**
@@ -198,6 +218,9 @@ export const wendeRasterAn = (staffeln: Preisstaffel[], raster: Staffelgrenze[])
       vonMenge: grenze.vonMenge,
       bisMenge: grenze.bisMenge,
       einzelpreis: alt ? alt.einzelpreis : letzterPreis,
+      // Die Regionpreise gehören zur Stufe, nicht zum Raster — beim Spiegeln
+      // der Grenzen dürfen sie nicht verlorengehen.
+      ...(alt?.regionPreise ? { regionPreise: alt.regionPreise } : {}),
     };
   });
   return staffelnGleich(ergebnis, staffeln) ? staffeln : ergebnis;
@@ -390,14 +413,18 @@ export const gleicheGrenzenAn = <T extends StaffelTraeger>(positionen: T[], leit
   let geaendert = leitStaffeln !== leit.staffeln;
   const ergebnis = positionen.map((pos, i) => {
     if (i === leitIndex) return leitStaffeln === pos.staffeln ? pos : { ...pos, staffeln: leitStaffeln };
-    const staffeln = raster.map((grenze, stufe) => ({
-      vonMenge: grenze.vonMenge,
-      bisMenge: grenze.bisMenge,
-      einzelpreis:
-        findeStaffel(pos.staffeln, grenze.vonMenge)?.einzelpreis ??
-        pos.staffeln[Math.min(stufe, pos.staffeln.length - 1)]?.einzelpreis ??
-        0,
-    }));
+    const staffeln = raster.map((grenze, stufe) => {
+      const passend =
+        findeStaffel(pos.staffeln, grenze.vonMenge) ??
+        pos.staffeln[Math.min(stufe, pos.staffeln.length - 1)];
+      return {
+        vonMenge: grenze.vonMenge,
+        bisMenge: grenze.bisMenge,
+        einzelpreis: passend?.einzelpreis ?? 0,
+        // Regionpreise wandern mit der Stufe mit, aus der auch der Preis kommt.
+        ...(passend?.regionPreise ? { regionPreise: passend.regionPreise } : {}),
+      };
+    });
     if (staffelnGleich(staffeln, pos.staffeln)) return pos;
     geaendert = true;
     return { ...pos, staffeln };

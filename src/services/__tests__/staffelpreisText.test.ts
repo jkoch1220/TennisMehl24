@@ -36,12 +36,14 @@ const konditionen = (teil: Partial<StaffelKonditionen> = {}): StaffelKonditionen
 });
 
 describe('standardStaffelKonditionen', () => {
-  it('setzt Saisonbonus, alle Sorten zusammen und den Stichtag 31.10.', () => {
+  // Seit 09/2026 wird ausschliesslich sofort umgestellt, und die Hauptsaison
+  // endet Ende April — vorher: Saisonbonus mit Stichtag 31.10.
+  it('setzt sofortige Umstellung, alle Sorten zusammen und Ende April', () => {
     const k = standardStaffelKonditionen(2026);
-    expect(k.abrechnungsmodell).toBe('saisonbonus');
+    expect(k.abrechnungsmodell).toBe('sofortumstellung');
     expect(k.mengenbasis).toBe('gesamt');
     expect(k.zeitraumVon).toBe('2026-01-01');
-    expect(k.zeitraumBis).toBe('2026-10-31');
+    expect(k.zeitraumBis).toBe('2026-04-30');
     expect(k.gutschriftNurBeiZahlung).toBe(true);
   });
 });
@@ -172,7 +174,8 @@ describe('staffelGrenzenIdentisch', () => {
 
 describe('erzeugeStaffelBeispiel', () => {
   it('Saisonbonus: Gutschrift für die gesamte Menge (350 t × 10 € = 3.500 € netto)', () => {
-    const text = nbsp(erzeugeStaffelBeispiel(konditionen(), artikel));
+    // Altmodell: nicht mehr wählbar, muss aber für bestehende Belege stimmen.
+    const text = nbsp(erzeugeStaffelBeispiel(konditionen({ abrechnungsmodell: 'saisonbonus' }), artikel));
     expect(text).toContain('Beispiel (Ziegelmehl 0/2):');
     expect(text).toContain('110,00 €/t für alle 350 t');
     expect(text).toContain('350 t × 10,00 € = 3.500,00 € netto');
@@ -257,17 +260,19 @@ describe('erzeugeStaffelBeispiel', () => {
 });
 
 describe('erzeugeStaffelHinweistext', () => {
-  it('Saisonbonus: rückwirkend, Grenzregel, Stichtag, Gutschrift mit USt, Zahlungsvoraussetzung', () => {
-    const text = nbsp(erzeugeStaffelHinweistext(konditionen(), artikel));
+  it('Saisonbonus (Altmodell): rückwirkend, Grenzregel, Stichtag, Gutschrift mit USt', () => {
+    const text = nbsp(
+      erzeugeStaffelHinweistext(konditionen({ abrechnungsmodell: 'saisonbonus' }), artikel)
+    );
     expect(text).toContain('So funktioniert die Staffelung:');
-    expect(text).toContain('im Zeitraum 01.01.2026 bis 31.10.2026');
+    expect(text).toContain('im Zeitraum 01.01.2026 bis 30.04.2026');
     expect(text).toContain('gilt rückwirkend für die gesamte');
     expect(text).toContain('Eine Stufengrenze zählt bereits zur höheren Stufe.');
-    expect(text).toContain('außerhalb dieses Zeitraums');
-    expect(text).toContain('Zum Stichtag 31.10.2026');
+    expect(text).toContain('außerhalb der Hauptsaison unterliegen ebenfalls der Preisstaffel');
+    expect(text).toContain('Zum Stichtag 30.04.2026');
     expect(text).toContain('Gutschrift (Staffelbonus)');
     expect(text).toContain('weist die Umsatzsteuer aus, nennt die betroffenen Rechnungen');
-    expect(text).toContain('innerhalb von 14 Tagen nach Gutschriftsdatum');
+    expect(text).toContain('wird überwiesen');
     expect(text).toContain('bei Erstellung der Gutschrift vollständig bezahlt');
     expect(text).toContain('laut Wiegeschein');
     expect(text).toContain('netto zuzüglich der gesetzlichen Umsatzsteuer');
@@ -310,12 +315,14 @@ describe('erzeugeStaffelHinweistext', () => {
   });
 
   it('kommt ohne Zeitraum aus und schreibt dann „Nach Saisonende"', () => {
-    const ohne = konditionen({ zeitraumVon: '', zeitraumBis: '' });
+    // Der Stichtagssatz gehört zum Saisonbonus; die sofortige Umstellung kennt
+    // keinen Stichtag und damit auch dieses Satzmuster nicht.
+    const ohne = konditionen({ abrechnungsmodell: 'saisonbonus', zeitraumVon: '', zeitraumBis: '' });
     const text = erzeugeStaffelHinweistext(ohne, artikel);
     expect(text).toContain('während der Saison');
     expect(text).toContain('Nach Saisonende stellen wir');
     expect(text).not.toContain('Stichtag Saisonende');
-    expect(text).not.toContain('außerhalb dieses Zeitraums');
+    expect(text).not.toContain('außerhalb der Hauptsaison');
     expect(staffelKurzfassung(ohne).join(' ')).toContain('Nach Saisonende erhalten Sie');
   });
 
@@ -328,7 +335,9 @@ describe('erzeugeStaffelHinweistext', () => {
 
 describe('staffelKurzfassung', () => {
   it('passt die Kurzfassung ans Modell an', () => {
-    expect(staffelKurzfassung(konditionen()).join(' ')).toContain('Zum Stichtag 31.10.2026');
+    expect(
+      staffelKurzfassung(konditionen({ abrechnungsmodell: 'saisonbonus' })).join(' ')
+    ).toContain('Zum Stichtag 30.04.2026');
     expect(staffelKurzfassung(konditionen({ abrechnungsmodell: 'stufenpreis' })).join(' ')).toContain(
       'keine nachträgliche Gutschrift'
     );

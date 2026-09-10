@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Plus, Trash2, Download, FileCheck, AlertCircle, CheckCircle2, Loader2, Lock, AlertTriangle, Cloud, CloudOff, Ban, RefreshCw, FileX, Mail, FileText, Package, ShoppingBag, Search, Fuel, Pencil, X, Info, Tag } from 'lucide-react';
+import { Plus, Trash2, Download, FileCheck, AlertCircle, CheckCircle2, Loader2, Lock, AlertTriangle, Cloud, CloudOff, Ban, RefreshCw, FileX, Mail, FileText, Package, ShoppingBag, Search, Fuel, Pencil, X, Info, Tag, MapPin } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -53,6 +53,11 @@ import { berechneFrachtkostenpauschale, FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER } fr
 import { summiereTonnage } from '../../utils/angebotsTonnage';
 import { validierePositionen, formatiereWarnungen, kennzeichneAlsFreitext } from '../../utils/positionsValidierung';
 import { erstelleArtikelIndex } from '../../utils/tonnage';
+import {
+  PlatzbauerPreisVorschlag,
+  ladePlatzbauerPreisKontext,
+  preisFuerArtikel,
+} from '../../services/platzbauerPreisService';
 import {
   berechneRabenDieselfloater,
   erstelleRabenDieselfloaterPosition,
@@ -247,6 +252,14 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
   // Stufe 4 (08/2026): Statt still eine TM-ZM-02-Position zu erfinden, wenn
   // das Vorgängerdokument keine Positionen liefert, wird gewarnt.
   const [keineVorgaengerPositionen, setKeineVorgaengerPositionen] = useState(false);
+  /**
+   * Preis aus der Staffelvereinbarung des Platzbauers (09/2026): Läuft das
+   * Projekt über einen Platzbauer, bestimmt dessen bisherige Gesamtabnahme die
+   * Mengenstufe und die PLZ des Vereins die Region. Der Vorschlag wird beim
+   * Erstbefüllen eingesetzt und bleibt als Banner sichtbar, damit ein
+   * abweichender Preis auffällt statt unbemerkt zu bleiben.
+   */
+  const [platzbauerPreise, setPlatzbauerPreise] = useState<PlatzbauerPreisVorschlag[]>([]);
   const [artikelTab, setArtikelTab] = useState<'eigene' | 'universa'>('eigene');
   const [artikelSuchtext, setArtikelSuchtext] = useState('');
   const [artikelSortierung, setArtikelSortierung] = useState<'bezeichnung' | 'artikelnummer' | 'einzelpreis'>('bezeichnung');
@@ -870,6 +883,50 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
             }
 
             console.log('✅ Rechnungsadresse vom Kunden geladen:', kundenstrasse, kundenPlzOrt);
+          }
+        }
+
+        // PLATZBAUER-STAFFEL: Preis je Position aus der Vereinbarung des
+        // Platzbauers holen. Die Stufe ergibt sich aus seiner bisherigen
+        // Gesamtabnahme, die Region aus der PLZ dieses Vereins.
+        let vorschlaege: PlatzbauerPreisVorschlag[] = [];
+        if (projekt) {
+          try {
+            const kontext = await ladePlatzbauerPreisKontext(projekt);
+            if (kontext) {
+              const gesehen = new Set<string>();
+              for (const pos of initialePositionen) {
+                const vorschlag = preisFuerArtikel(kontext, pos.artikelnummer);
+                if (vorschlag && !gesehen.has(vorschlag.artikelnummer)) {
+                  gesehen.add(vorschlag.artikelnummer);
+                  vorschlaege.push(vorschlag);
+                }
+              }
+              // Ohne übernommene Positionen trotzdem den Stand zeigen – dann
+              // weiß der Sachbearbeiter beim Anlegen der Zeilen, was gilt.
+              if (vorschlaege.length === 0) {
+                const vorschlag = preisFuerArtikel(kontext);
+                if (vorschlag) vorschlaege = [vorschlag];
+              }
+              setPlatzbauerPreise(vorschlaege);
+
+              // Positionen mit dem Staffelpreis vorbelegen. Nur beim
+              // Erstbefüllen (hier läuft nichts, wenn schon ein Dokument oder
+              // ein Entwurf existiert) – ein von Hand gesetzter Preis darf nie
+              // überschrieben werden.
+              initialePositionen = initialePositionen.map(pos => {
+                const treffer = vorschlaege.find(v => v.artikelnummer === pos.artikelnummer);
+                if (!treffer || Math.abs(treffer.einzelpreis - pos.einzelpreis) < 0.005) return pos;
+                return {
+                  ...pos,
+                  einzelpreis: treffer.einzelpreis,
+                  gesamtpreis: Math.round(pos.menge * treffer.einzelpreis * 100) / 100,
+                  preisQuelle: 'stamm' as const,
+                };
+              });
+            }
+          } catch (error) {
+            console.warn('Platzbauer-Staffelpreis konnte nicht ermittelt werden:', error);
           }
         }
 
@@ -2752,6 +2809,82 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* === PLATZBAUER-STAFFELPREIS === */}
+          {platzbauerPreise.length > 0 && !gespeichertesDokument && (
+            <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl">
+              <div className="flex items-start gap-3">
+                <MapPin className="h-5 w-5 text-amber-500 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                    Preis aus der Staffel von {platzbauerPreise[0].platzbauerName}
+                  </p>
+                  <p className="text-xs text-amber-800/80 dark:text-amber-300/80 mt-0.5">
+                    Bisherige Gesamtabnahme{' '}
+                    <strong>
+                      {platzbauerPreise[0].gesamtmenge.toLocaleString('de-DE', {
+                        maximumFractionDigits: 1,
+                      })}{' '}
+                      t
+                    </strong>
+                    {platzbauerPreise[0].plz ? ` · Lieferung nach PLZ ${platzbauerPreise[0].plz}` : ' · keine PLZ am Projekt'}
+                    {platzbauerPreise[0].angebotsnummer ? ` · laut Angebot ${platzbauerPreise[0].angebotsnummer}` : ''}
+                  </p>
+                  <ul className="mt-2 space-y-1">
+                    {platzbauerPreise.map(vorschlag => {
+                      const position = rechnungsDaten.positionen.find(
+                        p => p.artikelnummer === vorschlag.artikelnummer
+                      );
+                      const abweichend =
+                        !!position && Math.abs(position.einzelpreis - vorschlag.einzelpreis) >= 0.005;
+                      return (
+                        <li
+                          key={vorschlag.artikelnummer}
+                          className="text-xs text-amber-900 dark:text-amber-200 flex flex-wrap items-center gap-x-2"
+                        >
+                          <span className="font-medium">{vorschlag.bezeichnung}</span>
+                          <span className="text-amber-800/80 dark:text-amber-300/80">
+                            {vorschlag.herkunft}
+                          </span>
+                          {abweichend && (
+                            <>
+                              <span className="text-red-700 dark:text-red-400">
+                                Rechnung: {position!.einzelpreis.toLocaleString('de-DE', {
+                                  minimumFractionDigits: 2,
+                                })} €/t
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  hatGeaendert.current = true;
+                                  setRechnungsDaten(prev => ({
+                                    ...prev,
+                                    positionen: prev.positionen.map(p =>
+                                      p.artikelnummer === vorschlag.artikelnummer
+                                        ? {
+                                            ...p,
+                                            einzelpreis: vorschlag.einzelpreis,
+                                            gesamtpreis:
+                                              Math.round(p.menge * vorschlag.einzelpreis * 100) / 100,
+                                          }
+                                        : p
+                                    ),
+                                  }));
+                                }}
+                                className="px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-600 text-white"
+                              >
+                                Staffelpreis übernehmen
+                              </button>
+                            </>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              </div>
             </div>
           )}
 

@@ -34,19 +34,23 @@ export interface StaffelArtikelFuerText {
   staffeln: Preisstaffel[];
 }
 
+/**
+ * Die Abrechnungsmodelle.
+ *
+ * Gearbeitet wird ausschließlich mit der sofortigen Umstellung (Entscheidung
+ * 09/2026). „Saisonbonus" und „Stufenpreis" sind als `veraltet` markiert: Sie
+ * stehen nicht mehr zur Auswahl, bleiben aber im Code, weil bereits versandte
+ * Angebote und Auftragsbestätigungen sie tragen — ihr Hinweistext muss weiter
+ * korrekt erzeugt und angezeigt werden. Wer ein solches Altdokument öffnet,
+ * sieht sein Modell weiterhin; neu wählbar ist es nicht.
+ */
 export const STAFFEL_MODELLE: Array<{
   wert: StaffelAbrechnungsmodell;
   titel: string;
   kurz: string;
   empfohlen?: boolean;
+  veraltet?: boolean;
 }> = [
-  {
-    wert: 'saisonbonus',
-    titel: 'Saisonbonus',
-    kurz:
-      'Jede Lieferung wird zum Preis der 1. Stufe berechnet. Zum Stichtag gibt es eine Gutschrift über die Differenz für die gesamte gelieferte Menge.',
-    empfohlen: true,
-  },
   {
     wert: 'sofortumstellung',
     titel: 'Sofortige Umstellung',
@@ -54,11 +58,27 @@ export const STAFFEL_MODELLE: Array<{
       'Die Lieferung, die eine Stufe erreicht, wird schon zum neuen Preis berechnet. Die vorher gelieferten Tonnen werden per Ausgleichsgutschrift nachgezogen.',
   },
   {
+    wert: 'saisonbonus',
+    titel: 'Saisonbonus',
+    kurz:
+      'Jede Lieferung wird zum Preis der 1. Stufe berechnet. Zum Stichtag gibt es eine Gutschrift über die Differenz für die gesamte gelieferte Menge.',
+    veraltet: true,
+  },
+  {
     wert: 'stufenpreis',
     titel: 'Stufenpreis',
     kurz: 'Nur die Mehrmenge ab der Stufengrenze wird günstiger. Es gibt keine Gutschrift.',
+    veraltet: true,
   },
 ];
+
+/**
+ * Die Modelle, die ein neues Angebot anbieten darf — plus das bereits
+ * gewählte, damit ein Altbeleg beim Öffnen nicht stillschweigend umgestellt
+ * aussieht.
+ */
+export const waehlbareStaffelModelle = (aktuell?: StaffelAbrechnungsmodell) =>
+  STAFFEL_MODELLE.filter((m) => !m.veraltet || m.wert === aktuell);
 
 export const STAFFEL_MENGENBASEN: Array<{ wert: StaffelMengenbasis; titel: string; kurz: string }> = [
   {
@@ -73,12 +93,21 @@ export const STAFFEL_MENGENBASEN: Array<{ wert: StaffelMengenbasis; titel: strin
   },
 ];
 
-/** Standardkonditionen für eine Saison: Bonusmodell, Zeitraum 1.1. bis 31.10. */
+/**
+ * Standardkonditionen einer Saison: sofortige Umstellung, Abnahmezeitraum
+ * 1.1. bis 30.4.
+ *
+ * Bis 09/2026 stand hier der Saisonbonus mit Stichtag 31.10. Beides entsprach
+ * nicht dem gelebten Ablauf: Abgerechnet wird ab der Grenzlieferung sofort zum
+ * neuen Preis, und die Hauptsaison endet Ende April. ACHTUNG: Diese Funktion
+ * füllt auch Altbelege ohne gespeichertes Modell auf — deren Text folgt damit
+ * der heutigen Regel, nicht dem Wortlaut von damals.
+ */
 export const standardStaffelKonditionen = (saisonjahr: number): StaffelKonditionen => ({
-  abrechnungsmodell: 'saisonbonus',
+  abrechnungsmodell: 'sofortumstellung',
   mengenbasis: 'gesamt',
   zeitraumVon: `${saisonjahr}-01-01`,
-  zeitraumBis: `${saisonjahr}-10-31`,
+  zeitraumBis: `${saisonjahr}-04-30`,
   gutschriftNurBeiZahlung: true,
 });
 
@@ -297,15 +326,25 @@ export const erzeugeStaffelHinweistext = (
 ): string => {
   const zeitraum = zeitraumText(k);
   const basis = mengenbasisText(k, artikel.length);
+  // Bis 09/2026 stand hier das Gegenteil („Lieferungen außerhalb dieses
+  // Zeitraums sind von dieser Staffelvereinbarung nicht erfasst"). Gelebt wird
+  // es andersherum: Auch außerhalb der Hauptsaison gilt die Staffel; erreicht
+  // eine Lieferung eine neue Stufe, wird zum Monatsende gutgeschrieben. Beim
+  // Stufenpreis entfällt der Gutschrift-Halbsatz — dort gibt es keine.
   const ausserhalb = hatZeitraum(k)
-    ? ' Lieferungen außerhalb dieses Zeitraums sind von dieser Staffelvereinbarung nicht erfasst.'
+    ? k.abrechnungsmodell === 'stufenpreis'
+      ? ' Lieferungen außerhalb der Hauptsaison unterliegen ebenfalls der Preisstaffel.'
+      : ' Lieferungen außerhalb der Hauptsaison unterliegen ebenfalls der Preisstaffel; wird eine neue Mengenstaffel erreicht, erfolgt die Gutschrift für die bereits gezahlten Mengen zum Ende des Monats.'
     : '';
   const jeSorte =
     artikel.length > 1 && k.mengenbasis === 'gesamt'
       ? ' Die Differenz ermitteln wir je Sorte aus deren Staffeltabelle.'
       : '';
+  // Die Gutschrift wird überwiesen, nicht verrechnet: Eine Verrechnung mit
+  // offenen Forderungen hätte den Platzbauer gezwungen, seine Zahlung selbst
+  // zu kürzen — und die Zuordnung im Mahnwesen unklar gemacht.
   const gutschriftForm =
-    ' Die Gutschrift weist die Umsatzsteuer aus, nennt die betroffenen Rechnungen und wird mit offenen Forderungen verrechnet. Ein verbleibender Betrag wird innerhalb von 14 Tagen nach Gutschriftsdatum ausgezahlt.';
+    ' Die Gutschrift weist die Umsatzsteuer aus, nennt die betroffenen Rechnungen und wird überwiesen.';
   const rueckverweis = zeitraumRueckverweis(k);
   const absaetze: string[] = [];
 
@@ -323,7 +362,7 @@ export const erzeugeStaffelHinweistext = (
         `So funktioniert die Staffelung:\nMaßgeblich ist die Gesamtabnahmemenge ${zeitraum}. Die erreichte Preisstufe gilt rückwirkend für die gesamte ${rueckverweis} gelieferte Menge.${GRENZREGEL}${basis}${ausserhalb}`
       );
       absaetze.push(
-        `Abrechnung:\nJede Lieferung berechnen wir zum Preis der Stufe, die mit ihr erreicht ist. Die Lieferung, mit der die Gesamtabnahmemenge eine Stufengrenze erreicht oder überschreitet, berechnen wir bereits vollständig zum Preis der neuen Stufe. Für alle davor gelieferten Tonnen erhalten Sie die Differenz zum neuen Preis zeitnah als Ausgleichsgutschrift.${jeSorte}${gutschriftForm}`
+        `Abrechnung:\nJede Lieferung berechnen wir zum Preis der aktuellen Stufe, die mit der Bestellung erreicht ist. Die Lieferung, mit der die Gesamtabnahmemenge eine Stufengrenze erreicht oder überschreitet, berechnen wir bereits vollständig zum Preis der neuen Stufe. Für alle davor gelieferten Tonnen erhalten Sie die Differenz zum neuen Preis zeitnah als Ausgleichsgutschrift.${jeSorte}${gutschriftForm}`
       );
       break;
     case 'stufenpreis':
