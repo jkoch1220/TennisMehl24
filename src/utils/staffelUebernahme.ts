@@ -151,6 +151,10 @@ export const staffelSortenAusPositionen = (
         // zeigen, das PDF aber „unbegrenzt". Altbestände heilen hier.
         bisMenge: s.bisMenge ? s.bisMenge : null,
         einzelpreis: s.einzelpreis,
+        // Regionspreise gehören zur Stufe. Bis 10.09.2026 fielen sie hier weg:
+        // Nach dem Erstellen (Entwurf gelöscht) kam die Maske ohne Regionen
+        // zurück, und eine komplette PLZ-Preismatrix war verloren.
+        ...(s.regionPreise?.length ? { regionPreise: s.regionPreise.map((r) => ({ ...r })) } : {}),
       })),
       lieferregion: konfiguration?.lieferregion ?? ausText.lieferregion,
       bemerkung: konfiguration?.bemerkung ?? ausText.bemerkung,

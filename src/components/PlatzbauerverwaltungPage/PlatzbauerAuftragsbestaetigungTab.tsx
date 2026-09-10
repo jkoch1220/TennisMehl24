@@ -48,6 +48,7 @@ import { SaisonKunde } from '../../types/saisonplanung';
 import {
   speicherePlatzbauerAuftragsbestaetigung,
   speichereEntwurf,
+  sichereEntwurfLokal,
   ladeEntwurf,
   ladeAktuellesDokument,
 } from '../../services/platzbauerprojektabwicklungDokumentService';
@@ -112,10 +113,14 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
   const [hatAngebot, setHatAngebot] = useState(false);
 
   // Auto-Save
-  const [speicherStatus, setSpeicherStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
+  const [speicherStatus, setSpeicherStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'lokal' | 'idle'>('idle');
   const [initialLaden, setInitialLaden] = useState(true);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const hatGeaendert = useRef(false);
+  /** Aktueller Entwurf für die Sicherung beim Verlassen (siehe Angebotstab). */
+  const entwurfRef = useRef<ABEntwurf | null>(null);
+  const projektIdRef = useRef(projekt?.id);
+  projektIdRef.current = projekt?.id;
 
   // Verlauf
   const [verlaufLadeZaehler, setVerlaufLadeZaehler] = useState(0);
@@ -323,14 +328,49 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
         angebotsbezug: angebotsbezug || undefined,
         formData,
       };
-      await speichereEntwurf(projekt.id, 'auftragsbestaetigung', entwurf);
-      setSpeicherStatus('gespeichert');
+      const ergebnis = await speichereEntwurf(projekt.id, 'auftragsbestaetigung', entwurf);
+      setSpeicherStatus(ergebnis.appwriteGespeichert ? 'gespeichert' : 'lokal');
       hatGeaendert.current = false;
     } catch (error) {
       console.error('Auto-Save Fehler:', error);
       setSpeicherStatus('fehler');
     }
   }, [projekt?.id, initialLaden, positionen, staffelPositionen, preislistenPositionen, staffelKonditionen, angebotsbezug, formData]);
+
+  // Aktuellen Entwurf für die Sicherung beim Verlassen bereithalten
+  useEffect(() => {
+    entwurfRef.current = {
+      positionen,
+      staffelPositionen: staffelPositionen.length > 0 ? staffelPositionen : undefined,
+      preislistenPositionen: preislistenPositionen.length > 0 ? preislistenPositionen : undefined,
+      staffelKonditionen: staffelKonditionen || undefined,
+      angebotsbezug: angebotsbezug || undefined,
+      formData,
+    };
+  }, [positionen, staffelPositionen, preislistenPositionen, staffelKonditionen, angebotsbezug, formData]);
+
+  // Ungespeicherte Änderungen beim Verlassen sichern (Reload: lokal, Tabwechsel: auch Appwrite)
+  useEffect(() => {
+    const sichereBeimVerlassen = () => {
+      const projektId = projektIdRef.current;
+      if (!projektId || !hatGeaendert.current || !entwurfRef.current) return;
+      sichereEntwurfLokal(projektId, 'auftragsbestaetigung', entwurfRef.current);
+    };
+    window.addEventListener('pagehide', sichereBeimVerlassen);
+    return () => {
+      window.removeEventListener('pagehide', sichereBeimVerlassen);
+      const projektId = projektIdRef.current;
+      if (!projektId || !hatGeaendert.current || !entwurfRef.current) return;
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+        debounceTimer.current = null;
+      }
+      hatGeaendert.current = false;
+      speichereEntwurf(projektId, 'auftragsbestaetigung', entwurfRef.current).catch((e) =>
+        console.warn('Entwurf beim Verlassen nicht gespeichert:', e)
+      );
+    };
+  }, []);
 
   // Debounced Auto-Save
   useEffect(() => {
@@ -349,7 +389,7 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
         clearTimeout(debounceTimer.current);
       }
     };
-  }, [positionen, staffelPositionen, preislistenPositionen, formData, speichereAutomatisch, initialLaden]);
+  }, [positionen, staffelPositionen, preislistenPositionen, staffelKonditionen, angebotsbezug, formData, speichereAutomatisch, initialLaden]);
 
   // === CHANGE HANDLER ===
   const markiereGeaendert = () => {
@@ -542,6 +582,14 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
             <>
               <CloudOff className="w-5 h-5 text-red-500" />
               <span className="text-red-600 dark:text-red-400">Speicherfehler</span>
+            </>
+          )}
+          {speicherStatus === 'lokal' && (
+            <>
+              <CloudOff className="w-5 h-5 text-amber-500" />
+              <span className="text-amber-700 dark:text-amber-400">
+                Nur in diesem Browser gesichert – Server nicht erreichbar, wird beim nächsten Speichern erneut versucht
+              </span>
             </>
           )}
           {speicherStatus === 'idle' && (

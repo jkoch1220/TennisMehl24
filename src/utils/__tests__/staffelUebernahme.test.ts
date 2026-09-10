@@ -238,6 +238,25 @@ describe('staffelSortenAusPositionen', () => {
   });
 });
 
+describe('staffelSortenAusPositionen – Regionspreise', () => {
+  it('behält die Regionspreise je Stufe', () => {
+    const zeile = staffelZeile('TM-ZM-02', 'Ziegelmehl 0/2');
+    zeile.staffelpreise!.staffeln[0] = {
+      ...zeile.staffelpreise!.staffeln[0],
+      regionPreise: [
+        { plzGebiete: '61; 63; 64; 97', einzelpreis: 114.45 },
+        { plzGebiete: '34; 36', einzelpreis: 122.45 },
+      ],
+    };
+    const sorte = staffelSortenAusPositionen([zeile])[0];
+    expect(sorte.staffeln[0].regionPreise).toEqual([
+      { plzGebiete: '61; 63; 64; 97', einzelpreis: 114.45 },
+      { plzGebiete: '34; 36', einzelpreis: 122.45 },
+    ]);
+    expect(sorte.staffeln[1].regionPreise).toBeUndefined();
+  });
+});
+
 describe('leseAngebotsStand', () => {
   it('leitet den Staffelmodus aus den gespeicherten Zeilen ab', () => {
     const stand = leseAngebotsStand(angebotsDaten(), 2026);

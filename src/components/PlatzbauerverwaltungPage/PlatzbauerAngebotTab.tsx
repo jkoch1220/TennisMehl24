@@ -84,6 +84,7 @@ import { ladeBelegVorbelegung } from '../../utils/platzbauerBelegVorbelegung';
 import {
   speicherePlatzbauerAngebot,
   speichereEntwurf,
+  sichereEntwurfLokal,
   ladeEntwurf,
   ladeAktuellesDokument,
 } from '../../services/platzbauerprojektabwicklungDokumentService';
@@ -214,10 +215,18 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
   const [speichern, setSpeichern] = useState(false);
 
   // Auto-Save
-  const [speicherStatus, setSpeicherStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
+  const [speicherStatus, setSpeicherStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'lokal' | 'idle'>('idle');
   const [initialLaden, setInitialLaden] = useState(true);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const hatGeaendert = useRef(false);
+  /**
+   * Der Entwurf, wie er JETZT gespeichert würde. Ein Ref, weil die
+   * Sicherung beim Verlassen (Tabwechsel, Reload) außerhalb des React-Zyklus
+   * läuft und dort keine frischen Closures hat.
+   */
+  const entwurfRef = useRef<AngebotEntwurf | null>(null);
+  const projektIdRef = useRef(projekt?.id);
+  projektIdRef.current = projekt?.id;
 
   // Verlauf
   const [verlaufLadeZaehler, setVerlaufLadeZaehler] = useState(0);
@@ -471,8 +480,8 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
         angebotsModus: entwurf.angebotsModus,
         formDataKeys: Object.keys(entwurf.formData)
       });
-      await speichereEntwurf(projekt.id, 'angebot', entwurf);
-      setSpeicherStatus('gespeichert');
+      const ergebnis = await speichereEntwurf(projekt.id, 'angebot', entwurf);
+      setSpeicherStatus(ergebnis.appwriteGespeichert ? 'gespeichert' : 'lokal');
       hatGeaendert.current = false;
       console.log('✅ Auto-Save erfolgreich abgeschlossen');
     } catch (error) {
@@ -480,6 +489,52 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
       setSpeicherStatus('fehler');
     }
   }, [projekt?.id, initialLaden, vereinPositionen, zusatzPositionen, preislistenPositionen, staffelpreisPositionen, bedarfsPositionen, angebotsModus, staffelKonditionen, formData]);
+
+  // Aktuellen Entwurf für die Sicherung beim Verlassen bereithalten
+  useEffect(() => {
+    entwurfRef.current = {
+      vereinPositionen,
+      zusatzPositionen,
+      preislistenPositionen,
+      staffelpreisPositionen,
+      bedarfsPositionen,
+      angebotsModus,
+      staffelKonditionen,
+      formData,
+    };
+  }, [vereinPositionen, zusatzPositionen, preislistenPositionen, staffelpreisPositionen, bedarfsPositionen, angebotsModus, staffelKonditionen, formData]);
+
+  /**
+   * Ungespeicherte Änderungen beim Verlassen sichern (10.09.2026).
+   *
+   * Der Debounce wartet 1,5 s. Wer in dieser Zeit den Tab wechselt, die Seite
+   * neu lädt oder das Fenster schließt, verlor die letzte Eingabe – so ging
+   * eine komplette Staffel verloren. Beim Reload bleibt nur Zeit für den
+   * synchronen localStorage; beim Tabwechsel wird zusätzlich Appwrite
+   * angestoßen.
+   */
+  useEffect(() => {
+    const sichereBeimVerlassen = () => {
+      const projektId = projektIdRef.current;
+      if (!projektId || !hatGeaendert.current || !entwurfRef.current) return;
+      sichereEntwurfLokal(projektId, 'angebot', entwurfRef.current);
+    };
+    window.addEventListener('pagehide', sichereBeimVerlassen);
+    return () => {
+      window.removeEventListener('pagehide', sichereBeimVerlassen);
+      const projektId = projektIdRef.current;
+      if (!projektId || !hatGeaendert.current || !entwurfRef.current) return;
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+        debounceTimer.current = null;
+      }
+      hatGeaendert.current = false;
+      // Erst lokal (sicher), dann Appwrite (Netz, läuft nach dem Unmount weiter).
+      speichereEntwurf(projektId, 'angebot', entwurfRef.current).catch((e) =>
+        console.warn('Entwurf beim Verlassen nicht gespeichert:', e)
+      );
+    };
+  }, []);
 
   // Debounced Auto-Save - reagiert auf Änderungen
   useEffect(() => {
@@ -1305,6 +1360,14 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
             <>
               <CloudOff className="w-5 h-5 text-red-500" />
               <span className="text-red-600 dark:text-red-400">Speicherfehler</span>
+            </>
+          )}
+          {speicherStatus === 'lokal' && (
+            <>
+              <CloudOff className="w-5 h-5 text-amber-500" />
+              <span className="text-amber-700 dark:text-amber-400">
+                Nur in diesem Browser gesichert – Server nicht erreichbar, wird beim nächsten Speichern erneut versucht
+              </span>
             </>
           )}
           {speicherStatus === 'idle' && (

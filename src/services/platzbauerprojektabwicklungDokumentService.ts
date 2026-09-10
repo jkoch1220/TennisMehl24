@@ -932,11 +932,40 @@ export const ladeDokumentVerlauf = async (
  * Speichert einen Entwurf im Projekt (innerhalb des data-Feldes)
  * Nutzt das bestehende data-Feld um Appwrite Spalten-Limits zu umgehen
  */
+/** Ergebnis eines Entwurfs-Speicherns: lokal ist immer da, Appwrite nicht immer. */
+export interface EntwurfSpeicherErgebnis {
+  appwriteGespeichert: boolean;
+}
+
+/**
+ * Entwurf SYNCHRON in den localStorage legen.
+ *
+ * Eigener Einstieg, weil er ohne await auskommt: Beim Schließen oder Neuladen
+ * der Seite (`pagehide`) und beim Verlassen des Tabs bleibt dafür noch Zeit,
+ * für einen Appwrite-Aufruf nicht. Beim nächsten Öffnen gewinnt der jüngere
+ * Stand (siehe `waehleEntwurf`) – also dieser.
+ */
+export const sichereEntwurfLokal = (
+  projektId: string,
+  typ: 'angebot' | 'auftragsbestaetigung' | 'rechnung',
+  daten: any
+): EntwurfsUmschlag => {
+  const umschlag: EntwurfsUmschlag = { gespeichertAm: new Date().toISOString(), daten };
+  const localStorageKey = mockLocalStorageKey(`platzbauer_entwurf_${projektId}_${typ}`);
+  try {
+    localStorage.setItem(localStorageKey, JSON.stringify(umschlag));
+    console.log('💾 LocalStorage Backup gespeichert:', localStorageKey);
+  } catch (e) {
+    console.warn('LocalStorage Backup fehlgeschlagen:', e);
+  }
+  return umschlag;
+};
+
 export const speichereEntwurf = async (
   projektId: string,
   typ: 'angebot' | 'auftragsbestaetigung' | 'rechnung',
   daten: any
-): Promise<void> => {
+): Promise<EntwurfSpeicherErgebnis> => {
   console.log('🔧 speichereEntwurf START:', { projektId, typ, datenKeys: Object.keys(daten || {}) });
 
   if (!projektId) {
@@ -947,16 +976,8 @@ export const speichereEntwurf = async (
   // Beide Speicher bekommen denselben Zeitstempel. Ohne ihn liess sich beim
   // Laden nicht entscheiden, welcher Stand der juengere ist — und der lokale
   // gewann grundsaetzlich, auch wenn er Wochen alt war (Vorschlag [35]).
-  const umschlag: EntwurfsUmschlag = { gespeichertAm: new Date().toISOString(), daten };
-
-  // === SOFORT IN LOCALSTORAGE SPEICHERN (BACKUP) ===
-  const localStorageKey = mockLocalStorageKey(`platzbauer_entwurf_${projektId}_${typ}`);
-  try {
-    localStorage.setItem(localStorageKey, JSON.stringify(umschlag));
-    console.log('💾 LocalStorage Backup gespeichert:', localStorageKey);
-  } catch (e) {
-    console.warn('LocalStorage Backup fehlgeschlagen:', e);
-  }
+  // Der localStorage wird zuerst und synchron geschrieben (Backup).
+  const umschlag = sichereEntwurfLokal(projektId, typ, daten);
 
   // Aktuelles Projekt laden um data-Feld zu erhalten
   const projekt = await platzbauerverwaltungService.getPlatzbauerprojekt(projektId);
@@ -1001,14 +1022,18 @@ export const speichereEntwurf = async (
       }
     );
     console.log('✅ speichereEntwurf ERFOLGREICH abgeschlossen für', projektId);
+    return { appwriteGespeichert: true };
   } catch (error: any) {
     console.error('❌ speichereEntwurf FEHLER:', {
       error: error?.message || error,
       code: error?.code,
       type: error?.type
     });
-    // Nicht werfen - localStorage Backup existiert ja
+    // Nicht werfen – der localStorage hat den Stand. Aber der Aufrufer muss es
+    // wissen: Bis 10.09.2026 stand danach „Gespeichert" in der Maske, obwohl
+    // nur dieser Browser den Entwurf kannte.
     console.log('⚠️ Appwrite fehlgeschlagen, aber localStorage Backup existiert');
+    return { appwriteGespeichert: false };
   }
 };
 
