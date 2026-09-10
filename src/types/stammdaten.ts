@@ -54,6 +54,9 @@ export interface Stammdaten {
   // Standard-Angebotsartikel für Platzbauer (JSON von PlatzbauerStandardartikel[])
   platzbauerStandardartikel?: string;
 
+  // Textbausteine der Platzbauer-Belege (JSON von Belegtext[])
+  platzbauerBelegtexte?: string;
+
   // Saison-Einstellungen
   // Die Saison geht von November bis April (z.B. Nov 2025 - Apr 2026 = Saison 2026)
   aktuelleSaison?: number; // z.B. 2026 - kann manuell überschrieben werden
@@ -125,6 +128,7 @@ export interface StammdatenInput {
   agbAbschnitte?: string; // JSON von AgbAbschnitt[]
   salesLeitfaden?: string; // JSON von LeitfadenAbschnitt[]
   platzbauerStandardartikel?: string; // JSON von PlatzbauerStandardartikel[]
+  platzbauerBelegtexte?: string; // JSON von Belegtext[]
   aktuelleSaison?: number;
   saisonStartMonat?: number;
   // Liefersaison für PDF-Dokumente

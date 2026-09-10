@@ -11,6 +11,11 @@
  *                   fertiges Angebot: Die Nummer vergibt das Portal beim
  *                   Erstellen, und Preise gehören vor dem Versand geprüft.
  * `--ueberschreiben` ersetzt einen bereits vorhandenen Entwurf.
+ * `--finalisieren` erzeugt aus dem Entwurf ein fertiges Angebot: Nummer aus dem
+ *                  Saison-Nummernkreis (PB-AG-<Saison>-nnn), PDF im
+ *                  Dokumentenverlauf des Projekts, Projektfelder gesetzt. Der
+ *                  Entwurf BLEIBT liegen, damit sich Kleinigkeiten ändern und
+ *                  neu erzeugen lassen, ohne alles noch einmal zu tippen.
  * `--mock`          arbeitet auf der Sandbox-Datenbank.
  *
  * Datenquelle: `scripts/daten/platzbauer-angebote-2027.ts` (aus den 2026er
@@ -20,7 +25,7 @@ import fs from 'fs';
 import { setLogoBase64 } from '../src/services/logoLoader';
 import path from 'path';
 import { readFileSync } from 'fs';
-import { Client, Databases, ID, Query } from 'node-appwrite';
+import { Client, Databases, ID, Query, Storage } from 'node-appwrite';
 import {
   PLATZBAUER_ANGEBOTE_2027,
   PlatzbauerAngebotDaten,
@@ -55,6 +60,7 @@ const MOCK = hat('--mock');
 const SCHREIBEN = hat('--schreiben');
 const UEBERSCHREIBEN = hat('--ueberschreiben');
 const PDF_ORDNER = wert('--pdf');
+const FINALISIEREN = hat('--finalisieren');
 
 const heute = new Date();
 const iso = (d: Date) => d.toISOString().split('T')[0];
@@ -227,8 +233,35 @@ const appwrite = () => {
     .setKey(env.APPWRITE_API_KEY);
   return {
     db: new Databases(client),
+    storage: new Storage(client),
     DB: MOCK ? 'tennismehl24_db_mock' : 'tennismehl24_db',
+    BUCKET: MOCK ? 'platzbauer-dateien-mock' : 'platzbauer-dateien',
   };
+};
+
+/**
+ * Die ECHTEN Stammdaten aus Appwrite. Für ein finalisiertes Angebot muss der
+ * Beleg dieselben Pflichtangaben tragen wie jeder andere aus dem Portal —
+ * Bankverbindung, Geschäftsführer, Registergericht. Die Vorschau-Stammdaten
+ * sind nur ein Notbehelf für PDFs, die niemand verschickt.
+ */
+const ladeStammdaten = async (db: Databases, DB: string): Promise<Stammdaten> => {
+  const doc: any = await db.getDocument(DB, 'stammdaten', 'stammdaten_data');
+  try {
+    return { ...JSON.parse(doc.data || '{}'), ...doc } as Stammdaten;
+  } catch {
+    return doc as Stammdaten;
+  }
+};
+
+/** Nächste freie Angebotsnummer der Saison — dieselbe Regel wie im Portal. */
+const naechsteAngebotsnummer = async (db: Databases, DB: string): Promise<string> => {
+  const praefix = `PB-AG-${SAISON}-`;
+  const treffer = await db.listDocuments(DB, 'platzbauer_dokumente', [
+    Query.startsWith('dokumentNummer', praefix),
+    Query.limit(1),
+  ]);
+  return `${praefix}${String(treffer.total + 1).padStart(3, '0')}`;
 };
 
 /**
@@ -335,10 +368,124 @@ const schreibeEntwurf = async (
   return `✅ ${daten.kurz}: Entwurf in „${projektName}" hinterlegt (${projekt.$id})`;
 };
 
+/**
+ * Aus dem Entwurf ein fertiges Angebot machen: PDF rendern, in den
+ * Dateispeicher legen, Dokument anlegen, Projektfelder setzen.
+ *
+ * Der Entwurf bleibt bewusst liegen — anders als beim Erstellen im Portal.
+ * Diese sechs Vereinbarungen werden in der nächsten Saison Zeile für Zeile
+ * angepasst; wer dann bei null anfangen müsste, tippt eine Stunde.
+ */
+const finalisiere = async (daten: PlatzbauerAngebotDaten): Promise<string> => {
+  const { db, storage, DB, BUCKET } = appwrite();
+  const alle = await ladePlatzbauer(db, DB);
+  const platzbauer = findePlatzbauer(alle, daten.name);
+  if (!platzbauer) return `❌ ${daten.kurz}: Platzbauer nicht gefunden`;
+
+  const projekte = await db.listDocuments(DB, 'platzbauer_projekte', [
+    Query.equal('platzbauerId', platzbauer.id),
+    Query.equal('saisonjahr', SAISON),
+    Query.limit(50),
+  ]);
+  const projekt: any = projekte.documents.find((p: any) => p.typ === 'saisonprojekt');
+  if (!projekt) return `❌ ${daten.kurz}: kein Saisonprojekt ${SAISON} — erst --schreiben`;
+
+  let projektData: Record<string, any> = {};
+  try {
+    projektData = JSON.parse(projekt.data || '{}');
+  } catch {
+    projektData = {};
+  }
+  const projektName = projektData.projektName || `${platzbauer.name} ${SAISON}`;
+
+  // Schon ein Angebot da? Dann nicht doppelt nummerieren.
+  const vorhandene = await db.listDocuments(DB, 'platzbauer_dokumente', [
+    Query.equal('platzbauerprojektId', projekt.$id),
+    Query.equal('dokumentTyp', 'angebot'),
+    Query.limit(10),
+  ]);
+  if (vorhandene.total > 0 && !UEBERSCHREIBEN) {
+    return `⏭️  ${daten.kurz}: Angebot existiert bereits (${vorhandene.documents[0].dokumentNummer})`;
+  }
+
+  const angebotsnummer = await naechsteAngebotsnummer(db, DB);
+  const positionen = pdfPositionen(daten);
+  const pdfDaten: any = {
+    projekt: { id: projekt.$id, projektName, saisonjahr: SAISON },
+    angebotsnummer,
+    angebotsdatum: iso(heute),
+    gueltigBis: iso(in30Tagen),
+    platzbauerId: platzbauer.id,
+    platzbauername: platzbauer.name,
+    platzbauerstrasse: daten.strasse,
+    platzbauerPlzOrt: daten.plzOrt,
+    positionen: [],
+    angebotPositionen: positionen,
+    staffelKonditionen: standardStaffelKonditionen(SAISON),
+    zahlungsziel: daten.zahlungsziel,
+    zahlungsart: 'Überweisung',
+    lieferzeit: daten.lieferzeit,
+    lieferbedingungenAktiviert: true,
+    lieferbedingungen: daten.lieferbedingungen,
+    bemerkung: daten.bemerkung,
+  };
+
+  const stammdaten = await ladeStammdaten(db, DB);
+  const doc = await generierePlatzbauerAngebotPDF(pdfDaten, stammdaten);
+  const pdfBytes = Buffer.from(doc.output('arraybuffer'));
+  const dateiname = `Angebot ${platzbauer.name} ${SAISON}.pdf`;
+
+  // node-appwrite 21 nimmt ein Web-`File`; Node stellt es seit v20 global.
+  const datei = await storage.createFile(
+    BUCKET,
+    ID.unique(),
+    new File([pdfBytes], dateiname, { type: 'application/pdf' })
+  );
+
+  // Eine Staffelvereinbarung hat keine Auftragssumme: Menge und Betrag bleiben
+  // 0, damit sie die aus den Vereinszuordnungen berechneten Projektzahlen nicht
+  // mit Nullen überschreiben.
+  const abzurechnen = positionen.filter((p: any) => p.positionsTyp !== 'preisliste' && p.positionsTyp !== 'staffelpreis');
+  const nettobetrag = abzurechnen.reduce((s: number, p: any) => s + (p.gesamtpreis || 0), 0);
+  const gesamtMenge = abzurechnen.reduce((s: number, p: any) => s + (p.menge || 0), 0);
+
+  const dokument = await db.createDocument(DB, 'platzbauer_dokumente', ID.unique(), {
+    platzbauerprojektId: projekt.$id,
+    dokumentTyp: 'angebot',
+    dokumentNummer: angebotsnummer,
+    dateiId: datei.$id,
+    dateiname,
+    daten: JSON.stringify({
+      ...pdfDaten,
+      nettobetrag,
+      bruttobetrag: Math.round(nettobetrag * 1.19 * 100) / 100,
+      gesamtMenge,
+      anzahlPositionen: abzurechnen.length,
+      istFinal: false,
+      version: vorhandene.total + 1,
+    }),
+  });
+
+  projektData.angebotId = dokument.$id;
+  projektData.angebotsnummer = angebotsnummer;
+  projektData.angebotsdatum = iso(heute);
+  projektData.projektName = projektName;
+
+  await db.updateDocument(DB, 'platzbauer_projekte', projekt.$id, {
+    angebotId: dokument.$id,
+    angebotsnummer,
+    status: 'angebot',
+    data: JSON.stringify(projektData),
+    geaendertAm: new Date().toISOString(),
+  });
+
+  return `✅ ${daten.kurz}: ${angebotsnummer} erstellt (Dokument ${dokument.$id})`;
+};
+
 const main = async () => {
   setzeLogo();
-  if (!SCHREIBEN && !PDF_ORDNER) {
-    console.log('Nichts zu tun. Aufruf mit --pdf <ordner> und/oder --schreiben.');
+  if (!SCHREIBEN && !PDF_ORDNER && !FINALISIEREN) {
+    console.log('Nichts zu tun. Aufruf mit --pdf <ordner>, --schreiben und/oder --finalisieren.');
     return;
   }
 
@@ -358,6 +505,17 @@ const main = async () => {
     for (const daten of PLATZBAUER_ANGEBOTE_2027) {
       try {
         console.log(await schreibeEntwurf(db, DB, alle, daten));
+      } catch (e: any) {
+        console.log(`❌ ${daten.kurz}: ${e?.message || e}`);
+      }
+    }
+  }
+
+  if (FINALISIEREN) {
+    console.log(`\nFinalisiere Angebote ${SAISON} (${MOCK ? 'SANDBOX' : 'PRODUKTION'}):`);
+    for (const daten of PLATZBAUER_ANGEBOTE_2027) {
+      try {
+        console.log(await finalisiere(daten));
       } catch (e: any) {
         console.log(`❌ ${daten.kurz}: ${e?.message || e}`);
       }

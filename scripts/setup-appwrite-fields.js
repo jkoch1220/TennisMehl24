@@ -298,6 +298,9 @@ const stammdatenFields = [
   // Standard-Angebotsartikel für Platzbauer (als JSON-String)
   { key: 'platzbauerStandardartikel', type: 'string', size: 20000 },
 
+  // Textbausteine der Platzbauer-Belege (als JSON-String)
+  { key: 'platzbauerBelegtexte', type: 'string', size: 20000 },
+
   // Vertragsklauseln + AGB-Anhang für Angebote/ABs (als JSON-Strings).
   // Fehlten bis 07/2026 in diesem Skript, wodurch speichereStammdaten sie über
   // den "Unknown attribute"-Fallback stillschweigend verworfen hat.

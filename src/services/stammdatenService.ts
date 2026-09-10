@@ -251,6 +251,42 @@ export const speicherePlatzbauerStandardartikel = async (listeJson: string): Pro
 };
 
 /**
+ * Speichert nur die Textbausteine der Platzbauer-Belege. Eigene Funktion aus
+ * demselben Grund wie bei den Standardartikeln: Gepflegt wird im
+ * Platzbauer-Tool, wo die Firmen-Pflichtfelder von StammdatenInput fehlen.
+ */
+export const speicherePlatzbauerBelegtexte = async (texteJson: string): Promise<void> => {
+  invalidateStammdatenCache();
+  const feld = { platzbauerBelegtexte: texteJson, aktualisiertAm: new Date().toISOString() };
+  try {
+    await databases.updateDocument(
+      DATABASE_ID,
+      STAMMDATEN_COLLECTION_ID,
+      STAMMDATEN_DOCUMENT_ID,
+      feld
+    );
+  } catch (error: any) {
+    if (error?.code === 404) {
+      await initialisiereStammdaten();
+      await databases.updateDocument(
+        DATABASE_ID,
+        STAMMDATEN_COLLECTION_ID,
+        STAMMDATEN_DOCUMENT_ID,
+        feld
+      );
+    } else {
+      throw error;
+    }
+  }
+  auditService.logAktion({
+    action: 'update',
+    entityType: 'stammdaten',
+    entityId: STAMMDATEN_DOCUMENT_ID,
+    summary: 'Textbausteine der Platzbauer-Belege bearbeitet',
+  });
+};
+
+/**
  * Initialisiert Stammdaten mit Standardwerten (falls noch keine existieren)
  */
 export const initialisiereStammdaten = async (): Promise<Stammdaten> => {

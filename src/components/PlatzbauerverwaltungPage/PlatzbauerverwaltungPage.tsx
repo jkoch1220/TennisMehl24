@@ -10,6 +10,7 @@ import {
   ListPlus,
   Archive,
   ArchiveRestore,
+  FileText,
 } from 'lucide-react';
 import { PlatzbauermitVereinen, PBVStatistik } from '../../types/platzbauer';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
@@ -17,8 +18,9 @@ import PlatzbauerlListe from './PlatzbauerlListe';
 import PlatzbauerlStatistik from './PlatzbauerlStatistik';
 import PlatzbauerlDetailPopup from './PlatzbauerlDetailPopup';
 import PlatzbauerStandardartikelTab from './PlatzbauerStandardartikelTab';
+import PlatzbauerBelegtexteTab from './PlatzbauerBelegtexteTab';
 
-type ViewMode = 'liste' | 'statistik' | 'standardartikel';
+type ViewMode = 'liste' | 'statistik' | 'standardartikel' | 'belegtexte';
 
 // Session Storage Keys
 const STORAGE_KEYS = {
@@ -81,7 +83,9 @@ const PlatzbauerverwaltungPage = () => {
   const [viewMode, setViewModeState] = useState<ViewMode>(() => {
     // Gespeicherte Werte validieren (z.B. entferntes 'kanban' aus alten Sessions)
     const stored = loadSetting<string>(STORAGE_KEYS.viewMode, 'liste');
-    return stored === 'statistik' || stored === 'standardartikel' ? (stored as ViewMode) : 'liste';
+    return ['statistik', 'standardartikel', 'belegtexte'].includes(stored)
+      ? (stored as ViewMode)
+      : 'liste';
   });
   const [saisonjahr, setSaisonjahrState] = useState(() =>
     loadSetting(STORAGE_KEYS.saisonjahr, new Date().getFullYear())
@@ -302,6 +306,18 @@ const PlatzbauerverwaltungPage = () => {
               <ListPlus className="w-4 h-4" />
               <span className="hidden md:inline">Standardartikel</span>
             </button>
+            <button
+              onClick={() => setViewMode('belegtexte')}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${
+                viewMode === 'belegtexte'
+                  ? 'bg-white dark:bg-dark-bg text-amber-600 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+              title="Anrede, Einleitung, Überschriften und Grußformel der Belege pflegen"
+            >
+              <FileText className="w-4 h-4" />
+              <span className="hidden md:inline">Belegtexte</span>
+            </button>
           </div>
 
           {/* Archivansicht */}
@@ -332,6 +348,8 @@ const PlatzbauerverwaltungPage = () => {
         </div>
       ) : viewMode === 'standardartikel' ? (
         <PlatzbauerStandardartikelTab />
+      ) : viewMode === 'belegtexte' ? (
+        <PlatzbauerBelegtexteTab />
       ) : viewMode === 'liste' ? (
         <PlatzbauerlListe
           platzbauer={gefiltertePlatzbauer}

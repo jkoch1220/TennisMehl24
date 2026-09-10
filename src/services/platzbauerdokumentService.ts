@@ -30,6 +30,12 @@ import {
 } from '../utils/staffelpreisText';
 import { getStammdatenOderDefault } from './stammdatenService';
 import {
+  Belegtexte,
+  alsNachschlage,
+  belegtext,
+  leseBelegtexte,
+} from '../constants/platzbauerBelegtexte';
+import {
   addDIN5008Header,
   addDIN5008Footer,
   addAbsenderzeile,
@@ -1075,7 +1081,8 @@ const zeichnePreislistenBlock = async (
   doc: jsPDF,
   startY: number,
   positionen: PlatzbauerAngebotPosition[],
-  stammdaten: Stammdaten
+  stammdaten: Stammdaten,
+  texte: Belegtexte
 ): Promise<number> => {
   if (positionen.length === 0) return startY;
   let yPos = startY + 4;
@@ -1166,8 +1173,8 @@ const zeichnePreislistenBlock = async (
   yPos = zeichneAbschnittskopf(
     doc,
     yPos,
-    'Für alle Abrufe gültig',
-    'Zusatzleistungen – Preise je Einheit',
+    belegtext(texte, 'preislisteKennzeichnung'),
+    belegtext(texte, 'preislisteTitel'),
     PREISLISTE_FARBE
   );
 
@@ -1184,11 +1191,7 @@ const zeichnePreislistenBlock = async (
 
   doc.setFontSize(8);
   doc.setTextColor(107, 114, 128);
-  const fussnote: string[] = doc.splitTextToSize(
-    'Alle Preise netto zzgl. gesetzlicher Umsatzsteuer. Die Zusatzleistungen werden nur berechnet, ' +
-      'wenn sie tatsächlich abgerufen werden, und gelten für alle Lieferungen dieser Vereinbarung.',
-    160
-  );
+  const fussnote: string[] = doc.splitTextToSize(belegtext(texte, 'preislisteFussnote'), 160);
   yPos = await ensureSpace(doc, yPos, fussnote.length * 3.5 + 3, stammdaten);
   doc.setFontSize(8);
   doc.setTextColor(107, 114, 128);
@@ -1206,6 +1209,15 @@ export const generierePlatzbauerAngebotPDF = async (
   }
 
   const doc = new jsPDF();
+
+  // Textbausteine: gepflegt in der Platzbauer-Verwaltung, sonst Vorlage.
+  const texte = alsNachschlage(leseBelegtexte(stammdaten.platzbauerBelegtexte));
+  const textWerte = {
+    platzbauer: daten.platzbauername,
+    saison: daten.projekt.saisonjahr,
+    projekt: daten.projekt.projektName,
+    firma: stammdaten.firmenname,
+  };
 
   // DIN 5008 Header
   await addDIN5008Header(doc, stammdaten);
@@ -1290,11 +1302,16 @@ export const generierePlatzbauerAngebotPDF = async (
   // === Anrede ===
   yPos += 10;
   doc.setFontSize(10);
-  doc.text('Sehr geehrte Damen und Herren,', 25, yPos);
+  doc.text(belegtext(texte, 'anrede', textWerte), 25, yPos);
 
   // === Einleitungstext ===
   yPos += 8;
-  doc.text('gerne unterbreiten wir Ihnen folgendes Angebot für die Belieferung Ihrer Vereine:', 25, yPos);
+  const einleitungZeilen: string[] = doc.splitTextToSize(
+    belegtext(texte, 'angebotEinleitung', textWerte),
+    160
+  );
+  doc.text(einleitungZeilen, 25, yPos);
+  yPos += (einleitungZeilen.length - 1) * 4.5;
 
   // === Positionen Tabelle (Vereine) ===
   yPos += 8;
@@ -1324,7 +1341,7 @@ export const generierePlatzbauerAngebotPDF = async (
   yPos = await zeichneStaffelBlock(doc, yPos, staffelpreisPositionen, staffelKonditionen, stammdaten);
 
   // === STANDARD-PREISLISTE ===
-  yPos = await zeichnePreislistenBlock(doc, yPos, preislistenPositionen, stammdaten);
+  yPos = await zeichnePreislistenBlock(doc, yPos, preislistenPositionen, stammdaten, texte);
 
   // === POSITIONEN ===
   // Reihenfolge (09/2026): erst die Preisvereinbarung, dann die für alle Abrufe
@@ -1390,10 +1407,10 @@ export const generierePlatzbauerAngebotPDF = async (
           ? 'Zusätzlich zur Staffel'
           : 'Angebot',
       nurPreise
-        ? 'Preise je Verein'
+        ? belegtext(texte, 'preiseJeVereinTitel', textWerte)
         : staffelpreisPositionen.length > 0
-          ? 'Standard- und Zusatzpositionen'
-          : 'Positionen',
+          ? belegtext(texte, 'positionenTitelMitStaffel', textWerte)
+          : belegtext(texte, 'positionenTitel', textWerte),
       primaryColor
     );
 
@@ -1500,7 +1517,7 @@ export const generierePlatzbauerAngebotPDF = async (
     // Bedarfs-Hinweis
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
-    doc.text('Hinweis: Bedarfspositionen sind Schätzungen. Die tatsächliche Abrechnung erfolgt nach gelieferter Menge.', 25, yPos);
+    doc.text(belegtext(texte, 'bedarfHinweis', textWerte), 25, yPos);
     doc.setTextColor(0, 0, 0);
     yPos += 5;
   }
@@ -1674,10 +1691,11 @@ export const generierePlatzbauerAngebotPDF = async (
   // Der Seitenfuß hinterlässt eine graue Textfarbe; ohne das Zurücksetzen
   // stünde die Grußformel hellgrau unter schwarzen Bedingungen.
   doc.setTextColor(0, 0, 0);
-  doc.text('Wir freuen uns auf Ihre Rückmeldung und verbleiben', 25, summenY);
-  summenY += 4;
-  doc.text('mit freundlichen Grüßen', 25, summenY);
-  summenY += 4;
+  // Die Grußformel darf mehrzeilig gepflegt sein (eine Zeile je Absatz).
+  for (const zeile of belegtext(texte, 'grussformel', textWerte).split('\n')) {
+    doc.text(zeile, 25, summenY);
+    summenY += 4;
+  }
   doc.setFont('helvetica', 'bold');
   doc.text(stammdaten.firmenname, 25, summenY);
   doc.setFont('helvetica', 'normal');
@@ -1719,6 +1737,15 @@ export const generierePlatzbauerAuftragsbestaetigungPDF = async (
   // Altbelege ohne gespeichertes Modell bekommen den Saison-Standard.
   const staffelKonditionen: StaffelKonditionen =
     daten.staffelKonditionen ?? standardStaffelKonditionen(daten.projekt.saisonjahr);
+
+  // Textbausteine wie im Angebot – Kunde soll beide Belege nebeneinanderlegen.
+  const texte = alsNachschlage(leseBelegtexte(stammdaten.platzbauerBelegtexte));
+  const textWerte = {
+    platzbauer: daten.platzbauername,
+    saison: daten.projekt.saisonjahr,
+    projekt: daten.projekt.projektName,
+    firma: stammdaten.firmenname,
+  };
 
   // DIN 5008 Header
   await addDIN5008Header(doc, stammdaten);
@@ -1843,7 +1870,7 @@ export const generierePlatzbauerAuftragsbestaetigungPDF = async (
   // === Anrede ===
   yPos += 10;
   doc.setFontSize(10);
-  doc.text('Sehr geehrte Damen und Herren,', 25, yPos);
+  doc.text(belegtext(texte, 'anrede', textWerte), 25, yPos);
 
   // === Einleitungstext ===
   yPos += 8;
@@ -1853,7 +1880,7 @@ export const generierePlatzbauerAuftragsbestaetigungPDF = async (
     doc.text(satzZeilen, 25, yPos);
     yPos += (satzZeilen.length - 1) * (doc.getLineHeight() / doc.internal.scaleFactor);
   } else {
-    doc.text('vielen Dank für Ihren Auftrag. Wir bestätigen Ihnen hiermit folgende Lieferungen:', 25, yPos);
+    doc.text(belegtext(texte, 'abEinleitung', textWerte), 25, yPos);
   }
 
   // === Positionen Tabelle (Vereine) ===
@@ -1883,7 +1910,7 @@ export const generierePlatzbauerAuftragsbestaetigungPDF = async (
     );
   }
 
-  summenY = await zeichnePreislistenBlock(doc, summenY, preislistenPositionen, stammdaten);
+  summenY = await zeichnePreislistenBlock(doc, summenY, preislistenPositionen, stammdaten, texte);
 
   // === Summen ===
   summenY = await ensureSpace(doc, summenY, 35, stammdaten);
@@ -2075,7 +2102,7 @@ export const generierePlatzbauerAuftragsbestaetigungPDF = async (
   doc.setFontSize(10);
   doc.text('Wir danken für Ihr Vertrauen und freuen uns auf eine erfolgreiche Zusammenarbeit.', 25, summenY);
   summenY += 5;
-  doc.text('Mit freundlichen Grüßen', 25, summenY);
+  doc.text(belegtext(texte, 'grussformelKurz', textWerte), 25, summenY);
   summenY += 4;
   doc.setFont('helvetica', 'bold');
   doc.text(stammdaten.firmenname, 25, summenY);
@@ -2102,6 +2129,15 @@ export const generierePlatzbauerRechnungPDF = async (
   }
 
   const doc = new jsPDF();
+
+  // Textbausteine (Anrede, Grußformel) — gepflegt in der Platzbauer-Verwaltung.
+  const texte = alsNachschlage(leseBelegtexte(stammdaten.platzbauerBelegtexte));
+  const textWerte = {
+    platzbauer: daten.platzbauername || '',
+    saison: daten.projekt.saisonjahr,
+    projekt: daten.projekt.projektName,
+    firma: stammdaten.firmenname,
+  };
 
   // DIN 5008 Header
   await addDIN5008Header(doc, stammdaten);
@@ -2188,7 +2224,7 @@ export const generierePlatzbauerRechnungPDF = async (
   // === Anrede ===
   yPos += 10;
   doc.setFontSize(10);
-  doc.text('Sehr geehrte Damen und Herren,', 25, yPos);
+  doc.text(belegtext(texte, 'anrede', textWerte), 25, yPos);
 
   // === Einleitungstext ===
   yPos += 8;
@@ -2370,7 +2406,7 @@ export const generierePlatzbauerRechnungPDF = async (
   summenY = await ensureSpace(doc, summenY, 10, stammdaten);
 
   doc.setFontSize(10);
-  doc.text('Mit freundlichen Grüßen', 25, summenY);
+  doc.text(belegtext(texte, 'grussformelKurz', textWerte), 25, summenY);
   summenY += 4;
   doc.setFont('helvetica', 'bold');
   doc.text(stammdaten.firmenname, 25, summenY);
@@ -2397,6 +2433,15 @@ export const generierePlatzbauerProformaRechnungPDF = async (
   }
 
   const doc = new jsPDF();
+
+  // Textbausteine (Anrede, Grußformel) — gepflegt in der Platzbauer-Verwaltung.
+  const texte = alsNachschlage(leseBelegtexte(stammdaten.platzbauerBelegtexte));
+  const textWerte = {
+    platzbauer: daten.platzbauername || '',
+    saison: daten.projekt.saisonjahr,
+    projekt: daten.projekt.projektName,
+    firma: stammdaten.firmenname,
+  };
 
   // DIN 5008 Header
   await addDIN5008Header(doc, stammdaten);
@@ -2483,7 +2528,7 @@ export const generierePlatzbauerProformaRechnungPDF = async (
   // === Anrede ===
   yPos += 10;
   doc.setFontSize(10);
-  doc.text('Sehr geehrte Damen und Herren,', 25, yPos);
+  doc.text(belegtext(texte, 'anrede', textWerte), 25, yPos);
 
   // === Einleitungstext ===
   yPos += 8;
@@ -2648,7 +2693,7 @@ export const generierePlatzbauerProformaRechnungPDF = async (
   summenY = await ensureSpace(doc, summenY, 10, stammdaten);
 
   doc.setFontSize(10);
-  doc.text('Mit freundlichen Grüßen', 25, summenY);
+  doc.text(belegtext(texte, 'grussformelKurz', textWerte), 25, summenY);
   summenY += 4;
   doc.setFont('helvetica', 'bold');
   doc.text(stammdaten.firmenname, 25, summenY);
@@ -2675,6 +2720,15 @@ export const generierePlatzbauerLieferscheinPDF = async (
   }
 
   const doc = new jsPDF();
+
+  // Textbausteine (Anrede, Grußformel) — gepflegt in der Platzbauer-Verwaltung.
+  const texte = alsNachschlage(leseBelegtexte(stammdaten.platzbauerBelegtexte));
+  const textWerte = {
+    platzbauer: daten.platzbauername || '',
+    saison: daten.projekt.saisonjahr,
+    projekt: daten.projekt.projektName,
+    firma: stammdaten.firmenname,
+  };
 
   // DIN 5008 Header
   await addDIN5008Header(doc, stammdaten);
@@ -2795,7 +2849,7 @@ export const generierePlatzbauerLieferscheinPDF = async (
   // === Anrede ===
   yPos += 10;
   doc.setFontSize(10);
-  doc.text('Sehr geehrte Damen und Herren,', 25, yPos);
+  doc.text(belegtext(texte, 'anrede', textWerte), 25, yPos);
 
   // === Einleitungstext ===
   yPos += 8;
@@ -2868,7 +2922,7 @@ export const generierePlatzbauerLieferscheinPDF = async (
   signY = await ensureSpace(doc, signY, 10, stammdaten);
 
   doc.setFontSize(10);
-  doc.text('Mit freundlichen Grüßen', 25, signY);
+  doc.text(belegtext(texte, 'grussformelKurz', textWerte), 25, signY);
   signY += 5;
   doc.setFont('helvetica', 'bold');
   doc.text(stammdaten.firmenname, 25, signY);
