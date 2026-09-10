@@ -111,6 +111,13 @@ export interface PlatzbauerPosition {
   // Lieferschein-Info
   lieferscheinErstellt?: boolean;
   lieferscheinId?: string;
+
+  /**
+   * Woher der Preis dieser Zeile stammt, im Klartext für den Beleg — z. B.
+   * „Staffel Stufe 2 (ab 150 t)" oder „Direktpreis lt. Vereinbarung".
+   * Erzeugt von `utils/preisHerkunft.ts`; fehlt bei Altbelegen.
+   */
+  preisHerkunft?: string;
 }
 
 // ==================== STAFFELPREISE TYPES ====================

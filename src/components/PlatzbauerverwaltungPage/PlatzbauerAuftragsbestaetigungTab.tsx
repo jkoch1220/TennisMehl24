@@ -36,6 +36,7 @@ import {
   leseStaffelStand,
   uebernehmeStaffelnFuerAB,
 } from '../../utils/staffelUebernahme';
+import { bestimmeHerkunftAusSorten } from '../../utils/preisHerkunft';
 import {
   STAFFEL_MENGENBASEN,
   STAFFEL_MODELLE,
@@ -255,6 +256,13 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
 
             // Positionen vom Angebot übernehmen
             if (angebotDaten.positionen && angebotDaten.positionen.length > 0) {
+              // Preisherkunft mit übernehmen: Was die AB bestätigt, soll die
+              // Rechnung später unverändert ausweisen können.
+              const sorten = staffelStand.staffelPositionen.map(sp => ({
+                bezeichnung: sp.bezeichnung,
+                artikelnummer: sp.artikelnummer,
+                staffeln: sp.staffelpreise?.staffeln,
+              }));
               const uebernommenePositionen: PlatzbauerPosition[] = angebotDaten.positionen.map((p: any) => ({
                 vereinId: p.vereinId || '',
                 vereinsname: p.vereinsname || '',
@@ -263,6 +271,7 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
                 einzelpreis: p.einzelpreis || 0,
                 gesamtpreis: (p.menge || 0) * (p.einzelpreis || 0),
                 lieferadresse: p.lieferadresse,
+                preisHerkunft: bestimmeHerkunftAusSorten(p.einzelpreis || 0, sorten).text,
               }));
               setPositionen(uebernommenePositionen);
               setHatAngebot(true);

@@ -39,6 +39,8 @@ import {
   speicherePlatzbauerStornoRechnung,
   getFileDownloadUrl,
 } from '../../services/platzbauerprojektabwicklungDokumentService';
+import { leseStaffelStand } from '../../utils/staffelUebernahme';
+import { bestimmeHerkunftAusSorten } from '../../utils/preisHerkunft';
 import PlatzbauerDokumentVerlauf from './PlatzbauerDokumentVerlauf';
 import DokumentAdresseFormular, { DokumentAdresse } from '../Projektabwicklung/DokumentAdresseFormular';
 import { formatAdresszeile } from '../../services/pdfHelpers';
@@ -68,6 +70,18 @@ interface RechnungEntwurf {
   // Rechnungsadresse (editierbar)
   rechnungsAdresse?: DokumentAdresse;
 }
+
+/**
+ * Die Staffelsorten eines gespeicherten Belegs — Grundlage für die
+ * Preisherkunft der Vereinszeilen. Ohne Staffeln bleibt die Liste leer; dann
+ * gilt jeder Preis als Direktpreis.
+ */
+const sortenAusBeleg = (daten: unknown, saisonjahr: number) =>
+  leseStaffelStand(daten, saisonjahr).staffelPositionen.map(p => ({
+    bezeichnung: p.bezeichnung,
+    artikelnummer: p.artikelnummer,
+    staffeln: p.staffelpreise?.staffeln,
+  }));
 
 const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabProps) => {
   // === STATE ===
@@ -192,6 +206,12 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
               abDaten = {};
             }
             if (abDaten.positionen && abDaten.positionen.length > 0) {
+              // Preisherkunft je Zeile festhalten: Auf einer Sammelrechnung
+              // muss erkennbar sein, welcher Verein zur Staffel und welcher zu
+              // einem eigens vereinbarten Preis geliefert wurde. Ermittelt wird
+              // sie hier, nicht beim Drucken – der Beleg soll sich später nicht
+              // ändern, wenn jemand die Staffel pflegt.
+              const sorten = sortenAusBeleg(abDaten, projekt.saisonjahr);
               positionenGeladen = abDaten.positionen.map((p: any) => ({
                 vereinId: p.vereinId || '',
                 vereinsname: p.vereinsname || '',
@@ -200,6 +220,7 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
                 einzelpreis: p.einzelpreis || 0,
                 gesamtpreis: (p.menge || 0) * (p.einzelpreis || 0),
                 lieferadresse: p.lieferadresse,
+                preisHerkunft: bestimmeHerkunftAusSorten(p.einzelpreis || 0, sorten).text,
               }));
 
               // Zahlungsbedingungen übernehmen
@@ -223,6 +244,7 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
                 angebotDaten = {};
               }
               if (angebotDaten.positionen && angebotDaten.positionen.length > 0) {
+                const sorten = sortenAusBeleg(angebotDaten, projekt.saisonjahr);
                 positionenGeladen = angebotDaten.positionen.map((p: any) => ({
                   vereinId: p.vereinId || '',
                   vereinsname: p.vereinsname || '',
@@ -231,6 +253,7 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
                   einzelpreis: p.einzelpreis || 0,
                   gesamtpreis: (p.menge || 0) * (p.einzelpreis || 0),
                   lieferadresse: p.lieferadresse,
+                  preisHerkunft: bestimmeHerkunftAusSorten(p.einzelpreis || 0, sorten).text,
                 }));
 
                 if (angebotDaten.zahlungsziel) {

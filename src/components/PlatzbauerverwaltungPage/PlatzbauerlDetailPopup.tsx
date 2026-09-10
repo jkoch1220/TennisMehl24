@@ -14,6 +14,8 @@ import {
   RefreshCw,
   Wrench,
   Pencil,
+  BarChart3,
+  CopyPlus,
 } from 'lucide-react';
 import { PlatzbauermitVereinen, PlatzbauerProjekt } from '../../types/platzbauer';
 import { SaisonKunde, SaisonKundeMitDaten } from '../../types/saisonplanung';
@@ -21,6 +23,8 @@ import { platzbauerverwaltungService } from '../../services/platzbauerverwaltung
 import { saisonplanungService } from '../../services/saisonplanungService';
 import PlatzbauerlVereine from './PlatzbauerlVereine';
 import InstandsetzungsTab from './InstandsetzungsTab';
+import PlatzbauerAuswertungTab from './PlatzbauerAuswertungTab';
+import { uebernehmeSaisonVomVorjahr } from '../../services/saisonUebernahmeService';
 import KundenFormular from '../Saisonplanung/KundenFormular';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 
@@ -34,7 +38,7 @@ interface PlatzbauerlDetailPopupProps {
   setSelectedProjektId: (id: string | null) => void;
 }
 
-type TabId = 'stammdaten' | 'vereine' | 'projekte' | 'instandsetzung';
+type TabId = 'stammdaten' | 'vereine' | 'projekte' | 'auswertung' | 'instandsetzung';
 
 const PlatzbauerlDetailPopup = ({
   platzbauerId,
@@ -111,6 +115,49 @@ const PlatzbauerlDetailPopup = ({
       navigate(`/platzbauer-projektabwicklung/${neuesProjekt.id}`);
     } catch (error) {
       console.error('Fehler beim Erstellen des Saisonprojekts:', error);
+    }
+  };
+
+  /**
+   * Saisonvereinbarung aus dem Vorjahr übernehmen: Staffelmatrix, Konditionen
+   * und Standard-Preisliste landen als Angebotsentwurf im Saisonprojekt dieser
+   * Saison. Preise bleiben unverändert — sie gehören geprüft, bevor das
+   * Angebot rausgeht.
+   */
+  const [uebernahmeLaeuft, setUebernahmeLaeuft] = useState(false);
+  const handleUebernahmeVorjahr = async () => {
+    setUebernahmeLaeuft(true);
+    try {
+      let ergebnis = await uebernehmeSaisonVomVorjahr(platzbauerId, saisonjahr);
+      if (ergebnis.status === 'entwurf-vorhanden') {
+        const weiter = window.confirm(
+          `Für Saison ${saisonjahr} liegt bereits ein Angebotsentwurf vor.\n\n` +
+            'Soll er durch die Vorjahresvereinbarung ersetzt werden?'
+        );
+        if (!weiter) return;
+        ergebnis = await uebernehmeSaisonVomVorjahr(platzbauerId, saisonjahr, {
+          ueberschreibeEntwurf: true,
+        });
+      }
+
+      if (ergebnis.status === 'kein-vorjahr') {
+        window.alert(
+          `Für die Saisons vor ${saisonjahr} wurde kein Angebot dieses Platzbauers gefunden, ` +
+            'aus dem sich eine Vereinbarung übernehmen ließe.'
+        );
+        onRefresh();
+        return;
+      }
+
+      if (ergebnis.status === 'uebernommen') {
+        await handleLocalRefresh();
+        navigate(`/platzbauer-projektabwicklung/${ergebnis.projekt.id}`);
+      }
+    } catch (error) {
+      console.error('Übernahme aus dem Vorjahr fehlgeschlagen:', error);
+      window.alert('Die Übernahme ist fehlgeschlagen. Details stehen in der Konsole.');
+    } finally {
+      setUebernahmeLaeuft(false);
     }
   };
 
@@ -223,6 +270,7 @@ const PlatzbauerlDetailPopup = ({
                 { id: 'stammdaten' as TabId, label: 'Stammdaten', icon: Building2 },
                 { id: 'vereine' as TabId, label: `Vereine (${vereine.length})`, icon: Users },
                 { id: 'projekte' as TabId, label: `Projekte (${projekte.length})`, icon: FileCheck },
+                { id: 'auswertung' as TabId, label: 'Auswertung', icon: BarChart3 },
                 { id: 'instandsetzung' as TabId, label: 'Instandsetzung', icon: Wrench },
               ].map(tab => (
                 <button
@@ -263,9 +311,18 @@ const PlatzbauerlDetailPopup = ({
             {activeTab === 'projekte' && (
               <ProjekteTab
                 projekte={projekte}
+                saisonjahr={saisonjahr}
                 onSelectProjekt={handleSelectProjekt}
                 onCreateNachtrag={handleCreateNachtrag}
                 onCreateSaisonprojekt={handleCreateSaisonprojekt}
+                onUebernahmeVorjahr={handleUebernahmeVorjahr}
+                uebernahmeLaeuft={uebernahmeLaeuft}
+              />
+            )}
+            {activeTab === 'auswertung' && (
+              <PlatzbauerAuswertungTab
+                saisonjahr={saisonjahr}
+                projekte={projekte}
               />
             )}
             {activeTab === 'instandsetzung' && (
@@ -453,14 +510,20 @@ const StammdatenTab = ({
 // Projekte-Tab
 const ProjekteTab = ({
   projekte,
+  saisonjahr,
   onSelectProjekt,
   onCreateNachtrag,
   onCreateSaisonprojekt,
+  onUebernahmeVorjahr,
+  uebernahmeLaeuft,
 }: {
   projekte: PlatzbauerProjekt[];
+  saisonjahr: number;
   onSelectProjekt: (id: string) => void;
   onCreateNachtrag: () => void;
   onCreateSaisonprojekt: () => void;
+  onUebernahmeVorjahr: () => void;
+  uebernahmeLaeuft: boolean;
 }) => {
   // Sortiere: Saisonprojekte zuerst, dann Nachträge nach Nummer
   const sortierteProjekte = [...projekte].sort((a, b) => {
@@ -499,6 +562,15 @@ const ProjekteTab = ({
           {projekte.length} Projekt{projekte.length !== 1 ? 'e' : ''} in dieser Saison
         </h3>
         <div className="flex gap-2">
+          <button
+            onClick={onUebernahmeVorjahr}
+            disabled={uebernahmeLaeuft}
+            className="inline-flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-dark-bg border border-gray-300 dark:border-dark-border text-gray-700 dark:text-gray-200 text-sm rounded-lg hover:border-amber-400 disabled:opacity-50 transition-colors"
+            title={`Staffel, Konditionen und Standard-Preisliste aus der Vorsaison als Angebotsentwurf für ${saisonjahr} übernehmen`}
+          >
+            <CopyPlus className="w-4 h-4" />
+            {uebernahmeLaeuft ? 'Übernehme...' : 'Aus Vorjahr übernehmen'}
+          </button>
           {!hatSaisonprojekt && (
             <button
               onClick={onCreateSaisonprojekt}

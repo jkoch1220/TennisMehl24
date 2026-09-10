@@ -405,6 +405,46 @@ const zeichneStaffelHinweisBox = async (
   return yPos;
 };
 
+/** Spaltenmaß der Vereinsliste auf Rechnung, Proforma und AB. */
+const VEREINS_SPALTEN: Record<number, any> = {
+  0: { cellWidth: 11, halign: 'center', textColor: [107, 114, 128] as [number, number, number] },
+  1: { cellWidth: 71, valign: 'top' },
+  2: { cellWidth: 18, halign: 'right' },
+  3: { cellWidth: 12 },
+  4: { cellWidth: 22, halign: 'right' },
+  5: { cellWidth: 26, halign: 'right', fontStyle: 'bold' },
+};
+
+/**
+ * Eine Vereinszeile für Rechnung, Proforma und AB — inklusive Preisherkunft.
+ *
+ * Die Herkunft („Staffel Stufe 2 (ab 150 t)" oder „Direktpreis lt.
+ * Vereinbarung") steht unter Name und Lieferort. Ohne sie ließ sich auf einer
+ * Sammelrechnung nicht erkennen, warum zwei Vereine unterschiedliche Preise
+ * tragen; ermittelt wird sie beim Erzeugen des Belegs
+ * (`utils/preisHerkunft.ts`), nicht beim Drucken — der gedruckte Beleg soll
+ * sich später nicht ändern, wenn jemand die Staffel pflegt.
+ */
+const vereinsZeilen = (positionen: PlatzbauerPosition[]): string[][] =>
+  positionen.map((pos, index) => {
+    let adresseText = pos.vereinsname;
+    if (pos.lieferadresse) {
+      adresseText += `\n${pos.lieferadresse.plz} ${pos.lieferadresse.ort}`;
+    }
+    if (pos.preisHerkunft) {
+      adresseText += `\n${pos.preisHerkunft}`;
+    }
+
+    return [
+      (index + 1).toString(),
+      adresseText,
+      pos.menge.toFixed(1),
+      't',
+      formatWaehrung(pos.einzelpreis),
+      formatWaehrung(pos.gesamtpreis),
+    ];
+  });
+
 /**
  * Einheitlicher Tabellenstil für alle Blöcke eines Platzbauer-Belegs:
  * weißer Kopf mit farbiger Unterlinie, feine Zeilentrenner, sehr helle
@@ -1494,54 +1534,12 @@ export const generierePlatzbauerAuftragsbestaetigungPDF = async (
 
   let summenY = yPos;
   if (hatVereine) {
-    const tableData = daten.positionen.map((pos, index) => {
-      let adresseText = pos.vereinsname;
-      if (pos.lieferadresse) {
-        adresseText += `\n${pos.lieferadresse.plz} ${pos.lieferadresse.ort}`;
-      }
-
-      return [
-        (index + 1).toString(),
-        adresseText,
-        pos.menge.toFixed(1),
-        't',
-        formatWaehrung(pos.einzelpreis),
-        formatWaehrung(pos.gesamtpreis)
-      ];
-    });
-
     autoTable(doc, {
       startY: yPos,
-      margin: { left: 25, right: 20, top: 45, bottom: 30 },
       head: [['Pos.', 'Verein / Lieferort', 'Menge', 'Einh.', 'Preis/t', 'Gesamt']],
-      body: tableData,
-      theme: 'striped',
-      rowPageBreak: 'avoid',
-      headStyles: {
-        fillColor: primaryColor,
-        textColor: [255, 255, 255],
-        fontSize: 9,
-        fontStyle: 'bold'
-      },
-      styles: {
-        fontSize: 9,
-        cellPadding: 3
-      },
-      columnStyles: {
-        0: { cellWidth: 12, halign: 'center' },
-        1: { cellWidth: 70, valign: 'top' },
-        2: { cellWidth: 18, halign: 'right' },
-        3: { cellWidth: 14 },
-        4: { cellWidth: 22, halign: 'right' },
-        5: { cellWidth: 24, halign: 'right' }
-      },
-      didDrawPage: function(data) {
-        if (data.pageNumber > 1) {
-          addFollowPageHeader(doc, stammdaten);
-          addDIN5008Footer(doc, stammdaten);
-        }
-      }
-    });
+      body: vereinsZeilen(daten.positionen),
+      ...belegTabellenStil(doc, stammdaten, primaryColor, VEREINS_SPALTEN),
+    } as any);
     summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
   }
 
@@ -1878,54 +1876,14 @@ export const generierePlatzbauerRechnungPDF = async (
   // === Positionen Tabelle (Vereine) ===
   yPos += 8;
 
-  const tableData = daten.positionen.map((pos, index) => {
-    let adresseText = pos.vereinsname;
-    if (pos.lieferadresse) {
-      adresseText += `\n${pos.lieferadresse.plz} ${pos.lieferadresse.ort}`;
-    }
-
-    return [
-      (index + 1).toString(),
-      adresseText,
-      pos.menge.toFixed(1),
-      't',
-      formatWaehrung(pos.einzelpreis),
-      formatWaehrung(pos.gesamtpreis)
-    ];
-  });
+  const tableData = vereinsZeilen(daten.positionen);
 
   autoTable(doc, {
     startY: yPos,
-    margin: { left: 25, right: 20, top: 45, bottom: 30 },
     head: [['Pos.', 'Verein / Lieferort', 'Menge', 'Einh.', 'Preis/t', 'Gesamt']],
     body: tableData,
-    theme: 'striped',
-    rowPageBreak: 'avoid',
-    headStyles: {
-      fillColor: primaryColor,
-      textColor: [255, 255, 255],
-      fontSize: 9,
-      fontStyle: 'bold'
-    },
-    styles: {
-      fontSize: 9,
-      cellPadding: 3
-    },
-    columnStyles: {
-      0: { cellWidth: 12, halign: 'center' },
-      1: { cellWidth: 70, valign: 'top' },
-      2: { cellWidth: 18, halign: 'right' },
-      3: { cellWidth: 14 },
-      4: { cellWidth: 22, halign: 'right' },
-      5: { cellWidth: 24, halign: 'right' }
-    },
-    didDrawPage: function(data) {
-      if (data.pageNumber > 1) {
-        addFollowPageHeader(doc, stammdaten);
-        addDIN5008Footer(doc, stammdaten);
-      }
-    }
-  });
+    ...belegTabellenStil(doc, stammdaten, primaryColor, VEREINS_SPALTEN),
+  } as any);
 
   // === Summen ===
   let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
@@ -2213,54 +2171,14 @@ export const generierePlatzbauerProformaRechnungPDF = async (
   // === Positionen Tabelle (Vereine) ===
   yPos += 8;
 
-  const tableData = daten.positionen.map((pos, index) => {
-    let adresseText = pos.vereinsname;
-    if (pos.lieferadresse) {
-      adresseText += `\n${pos.lieferadresse.plz} ${pos.lieferadresse.ort}`;
-    }
-
-    return [
-      (index + 1).toString(),
-      adresseText,
-      pos.menge.toFixed(1),
-      't',
-      formatWaehrung(pos.einzelpreis),
-      formatWaehrung(pos.gesamtpreis)
-    ];
-  });
+  const tableData = vereinsZeilen(daten.positionen);
 
   autoTable(doc, {
     startY: yPos,
-    margin: { left: 25, right: 20, top: 45, bottom: 30 },
     head: [['Pos.', 'Verein / Lieferort', 'Menge', 'Einh.', 'Preis/t', 'Gesamt']],
     body: tableData,
-    theme: 'striped',
-    rowPageBreak: 'avoid',
-    headStyles: {
-      fillColor: primaryColor,
-      textColor: [255, 255, 255],
-      fontSize: 9,
-      fontStyle: 'bold'
-    },
-    styles: {
-      fontSize: 9,
-      cellPadding: 3
-    },
-    columnStyles: {
-      0: { cellWidth: 12, halign: 'center' },
-      1: { cellWidth: 70, valign: 'top' },
-      2: { cellWidth: 18, halign: 'right' },
-      3: { cellWidth: 14 },
-      4: { cellWidth: 22, halign: 'right' },
-      5: { cellWidth: 24, halign: 'right' }
-    },
-    didDrawPage: function(data) {
-      if (data.pageNumber > 1) {
-        addFollowPageHeader(doc, stammdaten);
-        addDIN5008Footer(doc, stammdaten);
-      }
-    }
-  });
+    ...belegTabellenStil(doc, stammdaten, primaryColor, VEREINS_SPALTEN),
+  } as any);
 
   // === Summen ===
   let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
@@ -2576,34 +2494,15 @@ export const generierePlatzbauerLieferscheinPDF = async (
 
   autoTable(doc, {
     startY: yPos,
-    margin: { left: 25, right: 20, top: 45, bottom: 30 },
     head: [['Pos.', 'Artikel', 'Menge', 'Einheit']],
     body: tableData,
-    theme: 'striped',
-    rowPageBreak: 'avoid',
-    headStyles: {
-      fillColor: primaryColor,
-      textColor: [255, 255, 255],
-      fontSize: 9,
-      fontStyle: 'bold'
-    },
-    styles: {
-      fontSize: 9,
-      cellPadding: 3
-    },
-    columnStyles: {
-      0: { cellWidth: 20, halign: 'center' },
-      1: { cellWidth: 90, valign: 'top' },
+    ...belegTabellenStil(doc, stammdaten, primaryColor, {
+      0: { cellWidth: 15, halign: 'center', textColor: [107, 114, 128] as [number, number, number] },
+      1: { cellWidth: 95, valign: 'top' },
       2: { cellWidth: 25, halign: 'right' },
-      3: { cellWidth: 25 }
-    },
-    didDrawPage: function(data) {
-      if (data.pageNumber > 1) {
-        addFollowPageHeader(doc, stammdaten);
-        addDIN5008Footer(doc, stammdaten);
-      }
-    }
-  });
+      3: { cellWidth: 25 },
+    }),
+  } as any);
 
   let signY = (doc as any).lastAutoTable.finalY || yPos + 40;
 
