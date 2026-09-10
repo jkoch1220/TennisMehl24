@@ -409,7 +409,7 @@ const VEREINS_SPALTEN: Record<number, any> = {
   0: { cellWidth: 11, halign: 'center', textColor: [107, 114, 128] as [number, number, number] },
   1: { cellWidth: 71, valign: 'top' },
   2: { cellWidth: 18, halign: 'right' },
-  3: { cellWidth: 12 },
+  3: { cellWidth: 12, halign: 'center', textColor: [107, 114, 128] as [number, number, number] },
   4: { cellWidth: 22, halign: 'right' },
   5: { cellWidth: 26, halign: 'right', fontStyle: 'bold' },
 };
@@ -461,22 +461,32 @@ const belegTabellenStil = (
   rowPageBreak: 'avoid' as const,
   tableWidth: 160,
   headStyles: {
-    fillColor: [255, 255, 255] as [number, number, number],
+    // Grau hinterlegter Kopf statt weiß: Er trennt die Beschriftung sichtbar
+    // von den Daten, auch wenn die Tabelle nach einem Seitenumbruch neu
+    // beginnt.
+    fillColor: [243, 244, 246] as [number, number, number], // gray-100
     textColor: [55, 65, 81] as [number, number, number], // gray-700
     fontSize: 8.5,
     fontStyle: 'bold' as const,
     lineColor: farbe,
     lineWidth: { bottom: 0.5 } as any,
-    cellPadding: { top: 1, bottom: 2.5, left: 2, right: 2 },
+    cellPadding: { top: 2, bottom: 2.5, left: 2.5, right: 2.5 },
   },
   styles: {
     fontSize: 9.5,
-    cellPadding: { top: 2.6, bottom: 2.6, left: 2, right: 2 },
-    lineColor: [229, 231, 235] as [number, number, number], // gray-200
-    lineWidth: { bottom: 0.15 } as any,
+    // Mehr Luft links und rechts: Sie trennt die Spalten zuverlässiger als
+    // jede Linie und lässt die Beträge nicht an die Nachbarspalte stoßen.
+    cellPadding: { top: 2.6, bottom: 2.6, left: 2.5, right: 2.5 },
+    lineColor: [226, 232, 240] as [number, number, number], // slate-200
+    lineWidth: { bottom: 0.2 } as any,
     textColor: [17, 24, 39] as [number, number, number],
   },
-  alternateRowStyles: { fillColor: [250, 250, 249] as [number, number, number] },
+  // KEINE Wechselzeilen: Die Belegtabellen werden gruppenweise gezeichnet
+  // (eine autoTable je Mengenstufe bzw. je Leistung), und autoTable zählt den
+  // Zeilenindex je Tabelle neu. Das Streifenmuster begann dadurch in jeder
+  // Gruppe von vorn und sah zufällig aus. Die Zeilen trennt jetzt allein die
+  // feine Linie — ruhiger und über alle Gruppen hinweg gleich.
+  alternateRowStyles: { fillColor: [255, 255, 255] as [number, number, number] },
   columnStyles: spalten,
   // Kopfzellen übernehmen die Ausrichtung ihrer Spalte. autoTable vererbt
   // halign aus columnStyles nicht in den Kopf – „Preis netto" stand deshalb
@@ -1078,10 +1088,13 @@ const zeichnePreislistenBlock = async (
     if (!gruppenNamen.includes(g)) gruppenNamen.push(g);
   }
 
+  // Drei klar getrennte Blöcke: Leistung links, Einheit mittig als schmale
+  // Säule, Betrag rechts. Die zentrierte Einheit gibt dem Auge einen Anker
+  // zwischen Text und Zahl – linksbündig verschwamm sie mit der Leistung.
   const spalten: Record<number, any> = {
-    0: { cellWidth: 108, valign: 'top' },
-    1: { cellWidth: 22 },
-    2: { cellWidth: 30, halign: 'right', fontStyle: 'bold' },
+    0: { cellWidth: 106, valign: 'top' },
+    1: { cellWidth: 20, halign: 'center', textColor: [107, 114, 128] as [number, number, number] },
+    2: { cellWidth: 34, halign: 'right', fontStyle: 'bold' },
   };
 
   // Eine Zeilengruppe je Leistung: Bezeichnung, ihr Kleintext und ihre eigene
@@ -1392,14 +1405,14 @@ export const generierePlatzbauerAngebotPDF = async (
         0: { cellWidth: 11, halign: 'center', textColor: [107, 114, 128] as [number, number, number] },
         1: { cellWidth: 24, textColor: [107, 114, 128] as [number, number, number] },
         2: { cellWidth: 79, valign: 'top' },
-        3: { cellWidth: 16 },
+        3: { cellWidth: 16, halign: 'center', textColor: [107, 114, 128] as [number, number, number] },
         4: { cellWidth: 30, halign: 'right', fontStyle: 'bold' },
       } : {
         0: { cellWidth: 11, halign: 'center', textColor: [107, 114, 128] as [number, number, number] },
         1: { cellWidth: 24, textColor: [107, 114, 128] as [number, number, number] },
         2: { cellWidth: 55, valign: 'top' },
         3: { cellWidth: 16, halign: 'right' },
-        4: { cellWidth: 11 },
+        4: { cellWidth: 11, halign: 'center', textColor: [107, 114, 128] as [number, number, number] },
         5: { cellWidth: 21, halign: 'right' },
         6: { cellWidth: 22, halign: 'right', fontStyle: 'bold' },
       }),
