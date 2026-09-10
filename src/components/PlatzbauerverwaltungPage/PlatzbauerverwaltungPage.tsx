@@ -105,6 +105,13 @@ const PlatzbauerverwaltungPage = () => {
   const [platzbauer, setPlatzbauer] = useState<PlatzbauermitVereinen[]>([]);
   const [statistik, setStatistik] = useState<PBVStatistik | null>(null);
   const [showSaisonprojekteDialog, setShowSaisonprojekteDialog] = useState(false);
+  /**
+   * Projektzahlen der Nachbarsaisons. Die Verwaltung zeigt immer nur EIN Jahr;
+   * wer die Vereinbarungen der kommenden Saison anlegt, sucht sie danach im
+   * laufenden Jahr und findet nichts. Der Hinweis unter der Kopfzeile nennt
+   * die Saison, in der etwas liegt, und schaltet auf Klick um.
+   */
+  const [projekteJeSaison, setProjekteJeSaison] = useState<Record<number, number>>({});
   const [erstellteSaisonprojekte, setErstellteSaisonprojekte] = useState(0);
 
   // Wrapper mit Storage
@@ -145,6 +152,19 @@ const PlatzbauerverwaltungPage = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    let abgebrochen = false;
+    platzbauerverwaltungService
+      .zaehleProjekteJeSaison([saisonjahr - 1, saisonjahr, saisonjahr + 1])
+      .then((zahlen) => {
+        if (!abgebrochen) setProjekteJeSaison(zahlen);
+      })
+      .catch((error) => console.warn('Projektzahlen nicht ermittelbar:', error));
+    return () => {
+      abgebrochen = true;
+    };
+  }, [saisonjahr]);
 
   // Filter nach Suche
   const gefiltertePlatzbauer = platzbauer.filter(pb => {
@@ -431,6 +451,37 @@ const PlatzbauerverwaltungPage = () => {
           </button>
         </div>
       </div>
+
+      {/* Andere Saison hat Projekte: Der häufigste Grund, warum jemand ein eben
+          angelegtes Angebot „nicht findet" — es liegt in der Folgesaison. */}
+      {(() => {
+        const andere = Object.entries(projekteJeSaison)
+          .map(([jahr, anzahl]) => ({ jahr: Number(jahr), anzahl }))
+          .filter((e) => e.jahr !== saisonjahr && e.anzahl > 0)
+          .sort((a, b) => b.jahr - a.jahr);
+        if (andere.length === 0) return null;
+        return (
+          <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm text-amber-900 dark:text-amber-200">
+            <CalendarDays className="w-4 h-4 shrink-0" />
+            <span>
+              Angezeigt wird <strong>Saison {saisonjahr}</strong>
+              {projekteJeSaison[saisonjahr] !== undefined && (
+                <> ({projekteJeSaison[saisonjahr]} Projekte)</>
+              )}
+              .
+            </span>
+            {andere.map((eintrag) => (
+              <button
+                key={eintrag.jahr}
+                onClick={() => setSaisonjahr(eintrag.jahr)}
+                className="underline underline-offset-2 font-medium hover:text-amber-700 dark:hover:text-amber-100"
+              >
+                Saison {eintrag.jahr} ({eintrag.anzahl}) anzeigen
+              </button>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Content */}
       {loading ? (

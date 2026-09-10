@@ -236,6 +236,45 @@ class PlatzbauerverwaltungService {
   }
 
   /**
+   * Wie viele Platzbauerprojekte liegen in welcher Saison? (10.09.2026)
+   *
+   * Die Verwaltung zeigt immer nur EINE Saison — voreingestellt das laufende
+   * Jahr. Wer die Vereinbarungen für die kommende Saison anlegt, sucht sie
+   * danach in der alten und findet nichts. Diese Zahlen erlauben den Hinweis
+   * „in Saison 2027 liegen 6 Projekte" samt Umschalter.
+   *
+   * `platzbauerId` grenzt auf einen Platzbauer ein (Detailansicht).
+   */
+  async zaehleProjekteJeSaison(
+    jahre: number[],
+    platzbauerId?: string
+  ): Promise<Record<number, number>> {
+    const ergebnis: Record<number, number> = {};
+    await Promise.all(
+      jahre.map(async (jahr) => {
+        try {
+          const queries = [
+            Query.equal('saisonjahr', jahr),
+            ...(platzbauerId ? [Query.equal('platzbauerId', platzbauerId)] : []),
+            // Nur die Gesamtzahl wird gebraucht; ein Dokument reicht als Antwort.
+            Query.limit(1),
+          ];
+          const antwort = await databases.listDocuments(
+            DATABASE_ID,
+            PLATZBAUER_PROJEKTE_COLLECTION_ID,
+            queries
+          );
+          ergebnis[jahr] = antwort.total;
+        } catch (error) {
+          console.warn(`Projektzahl für Saison ${jahr} nicht ermittelbar:`, error);
+          ergebnis[jahr] = 0;
+        }
+      })
+    );
+    return ergebnis;
+  }
+
+  /**
    * Platzbauer aus der Ansicht nehmen (09/2026).
    *
    * Der Kundenstamm führt 80 Platzbauer; gearbeitet wird mit einer Handvoll.
