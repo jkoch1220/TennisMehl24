@@ -1,7 +1,7 @@
 import { Query, ID } from 'appwrite';
 import { databases, DATABASE_ID, USER_PERMISSIONS_COLLECTION_ID } from '../config/appwrite';
 import { User, isAdmin } from './authService';
-import { ToolConfig, ALL_TOOLS } from '../constants/tools';
+import { ToolConfig, ALL_TOOLS, LEGACY_VOLLZUGRIFF_TOOL_IDS } from '../constants/tools';
 import { PermissionAction, PermissionMap } from '../types/permissions';
 import { resolveEffectivePermissions, parsePermissionMap } from './permissionResolution';
 import { ensureRolesLoaded, getRolePermissionMaps, clearRolesCache } from './rolesService';
@@ -145,7 +145,10 @@ export const getEffectivePermissions = (userId: string): PermissionMap => {
     allowOverride: perms.allowOverride,
     denyOverride: perms.denyOverride,
     legacyAllowedTools: perms.allowedTools,
-    allToolIds: ALL_TOOLS.map((t) => t.id),
+    // Ohne Rollen und ohne allowedTools-Liste bedeutet allToolIds "alles erlaubt".
+    // Opt-in-pflichtige Tools bleiben da bewusst draussen: Sie sollen niemandem
+    // dadurch zufallen, dass fuer ihn noch nie Rechte gepflegt wurden.
+    allToolIds: LEGACY_VOLLZUGRIFF_TOOL_IDS,
   });
   effectiveCache[userId] = effective;
   return effective;
@@ -373,3 +376,13 @@ export const filterAllowedTools = (user: User | null, allTools: ToolConfig[]): T
 
   return allTools.filter((tool) => can(user, tool.id, 'view'));
 };
+
+/**
+ * Tools, die als Kachel, Menuepunkt oder Suchtreffer angeboten werden duerfen:
+ * erlaubt UND mit eigenem Einstieg. Fuer reine Rechte-Abfragen weiter
+ * `filterAllowedTools` bzw. `can()` nehmen.
+ */
+export const filterNavigierbareTools = (
+  user: User | null,
+  allTools: ToolConfig[]
+): ToolConfig[] => filterAllowedTools(user, allTools).filter((tool) => !tool.keinEinstieg);

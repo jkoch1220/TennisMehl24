@@ -34,7 +34,6 @@ import {
   istUniversalProjekt,
 } from '../../utils/projektHerkunft';
 import { useCan } from '../../hooks/useCan';
-import { useAuth } from '../../contexts/AuthContext';
 import { prozessOverviewService, ProzessKennzahlen, LEERE_KENNZAHLEN } from '../../services/prozessOverviewService';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 
@@ -356,8 +355,6 @@ const ProzessOverview = ({
   onZeigeView,
 }: ProzessOverviewProps) => {
   const { can } = useCan();
-  // Das Massen-Angebots-Tool ist im Board nur Admins zugänglich — hier ebenso
-  const { isAdmin } = useAuth();
   const [kennzahlen, setKennzahlen] = useState<ProzessKennzahlen>(LEERE_KENNZAHLEN);
   const [laedt, setLaedt] = useState(true);
   const [linien, setLinien] = useState<Linie[]>([]);
@@ -504,6 +501,7 @@ const ProzessOverview = ({
 
   const darfShop = can('shop-bestellungen', 'view');
   const darfPlatzbauer = can('platzbauer-verwaltung', 'view');
+  const darfMassenangebot = can('massen-angebote', 'view');
   const darfEmail = can('email-dashboard', 'view');
   const darfDispo = can('dispo-planung', 'view');
   const darfDebitoren = can('debitoren', 'view');
@@ -618,7 +616,7 @@ const ProzessOverview = ({
               kennzahlLabel="Projekte aus Massen-Läufen"
               zusatz="Frühjahrs-Instandsetzung: Angebote für viele Saisonkunden in einem Lauf."
               onClick={() => onZeigeView('massenangebot')}
-              gesperrt={!isAdmin}
+              gesperrt={!darfMassenangebot}
             />
             <ToolKarte
               knoten="email"

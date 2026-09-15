@@ -3,7 +3,7 @@ import { Query } from 'appwrite';
 import { databases, DATABASE_ID, COLLECTIONS } from '../../../config/appwrite';
 import { loadAllDocuments } from '../../../utils/appwritePagination';
 import { ALL_TOOLS, ToolConfig } from '../../../constants/tools';
-import { filterAllowedTools } from '../../../services/permissionsService';
+import { filterNavigierbareTools } from '../../../services/permissionsService';
 import { useAuth } from '../../../contexts/AuthContext';
 import { SearchResult, SearchCategory, CATEGORY_ORDER } from '../types';
 import { Layers, Folder, Users, Receipt, Mail } from 'lucide-react';
@@ -331,7 +331,7 @@ export function useGlobalSearch() {
 
   // Gefilterte Tools basierend auf Benutzerberechtigungen
   const enabledTools = useMemo(
-    () => filterAllowedTools(user, ALL_TOOLS),
+    () => filterNavigierbareTools(user, ALL_TOOLS),
     [user]
   );
 

@@ -55,7 +55,7 @@ export type ViewMode =
   | 'massenangebot';
 
 /** Recht, das eine Ansicht voraussetzt. `undefined` = für alle sichtbar. */
-type Recht = 'admin' | 'shop';
+type Recht = 'admin' | 'shop' | 'massenangebot';
 
 export interface AnsichtDefinition {
   id: ViewMode;
@@ -189,9 +189,30 @@ export const ANSICHTEN: readonly AnsichtDefinition[] = [
     aktivKlasse: 'bg-emerald-600 text-white',
     symbolKlasse: 'text-emerald-600 dark:text-emerald-400',
     beschreibung: 'Der Herbstlauf für die Frühjahrsinstandsetzung',
-    benoetigt: 'admin',
+    benoetigt: 'massenangebot',
   },
 ] as const;
+
+/**
+ * Rechte, die ueber die Sichtbarkeit von Ansichten entscheiden.
+ *
+ * Steht hier und nicht in der Navigation, weil dieselbe Regel an mehreren
+ * Stellen greifen muss (Reiterleiste, Werkzeug-Menue, Prozess-Uebersicht).
+ * Eine Zugangsregel an zwei Stellen ist eine Zugangsregel, die irgendwann
+ * an einer davon vergessen wird.
+ */
+export interface AnsichtRechte {
+  isAdmin: boolean;
+  darfShop: boolean;
+  darfMassenangebot: boolean;
+}
+
+export const darfAnsichtSehen = (ansicht: AnsichtDefinition, rechte: AnsichtRechte): boolean => {
+  if (ansicht.benoetigt === 'admin') return rechte.isAdmin;
+  if (ansicht.benoetigt === 'shop') return rechte.darfShop;
+  if (ansicht.benoetigt === 'massenangebot') return rechte.darfMassenangebot;
+  return true;
+};
 
 export const VIEW_MODES = ANSICHTEN.map((a) => a.id) as readonly ViewMode[];
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Package, BarChart3, TrendingUp, AlertTriangle, Wrench, X, ChevronRight, Circle, ChevronDown, ChevronUp, Cloud, Sun, CloudRain, CloudSnow, CloudLightning, Loader2, Boxes, CheckCircle, Calendar, Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { filterAllowedTools } from '../services/permissionsService';
+import { filterAllowedTools, filterNavigierbareTools } from '../services/permissionsService';
 import { ALL_TOOLS } from '../constants/tools';
 import { instandhaltungService } from '../services/instandhaltungService';
 import { OverdueInfo, FREQUENZ_CONFIG, InstandhaltungFrequenz, InstandhaltungChecklistItem } from '../types/instandhaltung';
@@ -284,7 +284,7 @@ const Home = () => {
   };
   
   // Tools basierend auf User-Berechtigungen filtern
-  const enabledTools = filterAllowedTools(user, ALL_TOOLS);
+  const enabledTools = filterNavigierbareTools(user, ALL_TOOLS);
   
   // Zusätzlich lokale Visibility-Settings beachten
   const localVisibility = (() => {

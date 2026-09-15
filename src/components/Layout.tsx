@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import VorschlagButton from './Tickets/VorschlagButton';
 import { ALL_TOOLS, sortiereFuerNavigation } from '../constants/tools';
 import { useAuth } from '../contexts/AuthContext';
-import { filterAllowedTools } from '../services/permissionsService';
+import { filterNavigierbareTools } from '../services/permissionsService';
 import PasswordChange from './Settings/PasswordChange';
 import UserManagement from './Settings/UserManagement';
 import RolesEditor from './Settings/RolesEditor';
@@ -77,7 +77,7 @@ const Layout = ({ children }: LayoutProps) => {
   };
   
   // Tools basierend auf User-Berechtigungen filtern (nur wenn Permissions geladen)
-  const enabledTools = permissionsLoading ? [] : filterAllowedTools(user, ALL_TOOLS);
+  const enabledTools = permissionsLoading ? [] : filterNavigierbareTools(user, ALL_TOOLS);
   
   // Local visibility settings (zusätzlich zur Permission-basierten Filterung)
   const [localVisibility, setLocalVisibility] = useState<Record<string, boolean>>(() => {

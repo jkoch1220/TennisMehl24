@@ -1,17 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Grid3X3 } from 'lucide-react';
-import { ANSICHTEN, type AnsichtDefinition, type ViewMode } from './ansichten';
-
-interface Rechte {
-  isAdmin: boolean;
-  darfShop: boolean;
-}
-
-const darfSehen = (ansicht: AnsichtDefinition, rechte: Rechte): boolean => {
-  if (ansicht.benoetigt === 'admin') return rechte.isAdmin;
-  if (ansicht.benoetigt === 'shop') return rechte.darfShop;
-  return true;
-};
+import {
+  ANSICHTEN,
+  darfAnsichtSehen,
+  type AnsichtRechte,
+  type ViewMode,
+} from './ansichten';
 
 /**
  * Verzögerungen beim Überfahren. Ohne die zweite würde das Menü zuklappen,
@@ -26,12 +20,19 @@ interface Props {
   onWechsel: (ziel: ViewMode) => void;
   isAdmin: boolean;
   darfShop: boolean;
+  darfMassenangebot: boolean;
 }
 
-export default function AnsichtenNavigation({ aktiv, onWechsel, isAdmin, darfShop }: Props) {
-  const rechte: Rechte = { isAdmin, darfShop };
-  const primaere = ANSICHTEN.filter((a) => a.primaer && darfSehen(a, rechte));
-  const imMenue = ANSICHTEN.filter((a) => !a.primaer && darfSehen(a, rechte));
+export default function AnsichtenNavigation({
+  aktiv,
+  onWechsel,
+  isAdmin,
+  darfShop,
+  darfMassenangebot,
+}: Props) {
+  const rechte: AnsichtRechte = { isAdmin, darfShop, darfMassenangebot };
+  const primaere = ANSICHTEN.filter((a) => a.primaer && darfAnsichtSehen(a, rechte));
+  const imMenue = ANSICHTEN.filter((a) => !a.primaer && darfAnsichtSehen(a, rechte));
 
   const [offen, setOffen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -50,6 +50,29 @@ export interface ToolConfig {
    * Wurzel: keine Kachel, kein Menüpunkt, keine Route.
    */
   nurAdmin?: boolean;
+  /**
+   * Opt-in-Pflicht: Das Tool wird NICHT vom Legacy-Vollzugriff erfasst.
+   *
+   * Ein User ohne zugewiesene Rolle und ohne `allowedTools`-Liste bekommt ueber
+   * `legacyAllowedTools = null` sonst automatisch JEDES Tool aus ALL_TOOLS
+   * (siehe permissionResolution.ts). Ein neu ergaenztes Tool waere damit fuer
+   * genau die Bestandsuser offen, die nie bewusst berechtigt wurden. Bei einem
+   * Tool, das scharf E-Mails an hunderte Kunden verschickt, ist das keine
+   * Option — es muss aktiv vergeben werden, per Rolle oder User-Ausnahme.
+   *
+   * Anders als `nurAdmin` bleibt das Tool in der Rechte-Matrix waehlbar.
+   */
+  optInPflichtig?: boolean;
+  /**
+   * Reines Recht ohne eigenen Einstieg: keine Kachel, kein Menuepunkt, kein
+   * Treffer in der globalen Suche.
+   *
+   * Fuer Funktionen, die in einem anderen Tool wohnen und nur dort erreichbar
+   * sind — ein zusaetzlicher Menuepunkt waere ein zweiter Weg zum selben
+   * Reiter, den die Menueleiste zudem nie als aktiv markieren kann (sie
+   * vergleicht nur den Pfad, nicht die Ansicht dahinter).
+   */
+  keinEinstieg?: boolean;
 }
 
 export const ALL_TOOLS: ToolConfig[] = [
@@ -329,6 +352,16 @@ export const ALL_TOOLS: ToolConfig[] = [
     color: 'from-teal-500 to-emerald-600',
   },
   {
+    id: 'massen-angebote',
+    name: 'Massen-Angebote',
+    description: 'Der Herbstlauf: Angebote zur Fruehjahrs-Instandsetzung fuer viele Saisonkunden in einem Durchgang',
+    href: '/projekt-verwaltung?view=massenangebot',
+    icon: Calculator,
+    color: 'from-emerald-500 to-teal-600',
+    optInPflichtig: true,
+    keinEinstieg: true,
+  },
+  {
     id: 'audit-log',
     name: 'Audit-Log',
     description: 'Wer hat was wann geändert — zentrales Änderungsprotokoll (Admin, D13)',
@@ -337,6 +370,15 @@ export const ALL_TOOLS: ToolConfig[] = [
     color: 'from-slate-500 to-gray-700',
   },
 ];
+
+/**
+ * Tool-IDs, die der Legacy-Vollzugriff umfasst (User ohne Rollen und ohne
+ * `allowedTools`-Liste). Opt-in-pflichtige Tools fehlen hier bewusst — sie
+ * muessen aktiv vergeben werden. Siehe `optInPflichtig` in ToolConfig.
+ */
+export const LEGACY_VOLLZUGRIFF_TOOL_IDS = ALL_TOOLS.filter((tool) => !tool.optInPflichtig).map(
+  (tool) => tool.id
+);
 
 export const DEFAULT_TOOL_VISIBILITY = ALL_TOOLS.reduce<Record<string, boolean>>((acc, tool) => {
   acc[tool.id] = true;

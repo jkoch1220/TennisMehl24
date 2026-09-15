@@ -417,6 +417,15 @@ const ProjektVerwaltung = () => {
   // eine Rechteausweitung als Nebenwirkung eines Umzugs.
   const darfShop = canAccessTool(user, 'shop-bestellungen');
   const { can: canDo } = useCan();
+  // Massen-Angebote hing frueher am Admin-Label und war damit ueber die
+  // Rollenverwaltung ueberhaupt nicht vergebbar — wer den Herbstlauf fahren
+  // sollte, haette Admin werden muessen und damit nebenbei jedes andere
+  // Admin-Gate im Portal mitbekommen. Jetzt ein eigenes Tool-Recht.
+  //
+  // Bewusst ueber useCan statt canAccessTool: Das Tool verschickt scharf
+  // E-Mails an hunderte Kunden. Solange die Rechte noch laden, liefert useCan
+  // false (fail-closed) und zieht die Freigabe nach, sobald sie stehen.
+  const darfMassenangebot = canDo('massen-angebote', 'view');
   const [editingProjekt, setEditingProjekt] = useState<Projekt | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [verlorenProjekt, setVerlorenProjekt] = useState<Projekt | null>(null);
@@ -1297,6 +1306,7 @@ const ProjektVerwaltung = () => {
               onWechsel={setViewMode}
               isAdmin={isAdmin}
               darfShop={darfShop}
+              darfMassenangebot={darfMassenangebot}
             />
 
             {/* Kompakte Ansicht Toggle (nur im Kanban) */}
@@ -1556,7 +1566,9 @@ const ProjektVerwaltung = () => {
       )}
 
       {/* Massen-Angebote (Frühjahrsinstandsetzung) – zielt immer auf die aktuelle Default-Saison */}
-      {viewMode === 'massenangebot' && isAdmin && <MassenAngebotTool saisonjahr={aktuelleSaison} />}
+      {viewMode === 'massenangebot' && darfMassenangebot && (
+        <MassenAngebotTool saisonjahr={aktuelleSaison} />
+      )}
       {viewMode === 'fakturierung' && <SammelfakturierungTool saisonjahr={aktuelleSaison} />}
       {viewMode === 'shop' && darfShop && <ShopBestellungen eingebettet />}
 
